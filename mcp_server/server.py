@@ -54,7 +54,7 @@ from mcp_server.utils.receipts import send_purchase_receipt
 from mcp_server.utils.category_risk import CATEGORY_VALUES
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger("Albugent-Alexa-MCP")
+logger = logging.getLogger("Alguard-MCP")
 
 ensure_schema()
 
@@ -64,7 +64,7 @@ ensure_schema()
 _token_verifier = build_token_verifier_from_env()
 if _token_verifier is not None:
     mcp = FastMCP(
-        "Albugent-Alexa-Purchase-Guard",
+        "Alguard",
         token_verifier=_token_verifier,
         auth=AuthSettings(
             issuer_url=AnyHttpUrl(os.environ["OAUTH_ISSUER_URL"]),
@@ -76,7 +76,7 @@ if _token_verifier is not None:
     )
     logger.info("OAuth resource-server auth ENABLED (issuer=%s)", os.environ["OAUTH_ISSUER_URL"])
 else:
-    mcp = FastMCP("Albugent-Alexa-Purchase-Guard")
+    mcp = FastMCP("Alguard")
     logger.warning("OAuth NOT configured (OAUTH_JWKS_URL/OAUTH_ISSUER_URL/OAUTH_AUDIENCE unset) -- "
                    "running with NO auth. Fine for local dev, not for certification.")
 

@@ -15,8 +15,9 @@ from fastapi import FastAPI, HTTPException, Header
 
 from web_api.apply_resolution import resolve_pending_action
 from mcp_server.utils.db_utils import get_session_actions
+from mcp_server.utils.receipts import get_receipt
 
-app = FastAPI(title="Albugent-Alexa Tier 2 Resolution Service")
+app = FastAPI(title="Alguard Tier 2 Resolution Service")
 
 
 def require_authenticated_user(x_user_id: str = Header(...)) -> str:
@@ -38,6 +39,17 @@ def resolve(action_id: str, approved: bool, user_id: str = Header(..., alias="X-
 @app.get("/sessions/{session_id}")
 def session_status(session_id: str) -> Dict:
     return {"session_id": session_id, "actions": get_session_actions(session_id)}
+
+
+@app.get("/receipts/{action_id}")
+def receipt(action_id: str) -> Dict:
+    """The customer-facing view of a delivered receipt (Functional Requirements #8:
+    a receipt must be deliverable via at least one channel -- this is that channel's
+    read side; see mcp_server/utils/receipts.py for the write side)."""
+    entry = get_receipt(action_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail=f"No receipt found for action_id '{action_id}'")
+    return entry
 
 
 if __name__ == "__main__":

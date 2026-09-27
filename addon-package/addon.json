@@ -6,11 +6,11 @@
       "en-US": {
         "default": "DEFAULT",
         "name": {
-          "value": "Purchase Guard",
+          "value": "Alguard",
           "spokenForm": { "format": "ipa", "value": " " }
         },
         "shortDescription": "Risk-gates purchases Alexa+ attempts on your behalf before they complete",
-        "fullDescription": "Purchase Guard evaluates every purchase, booking, or subscription Alexa+ attempts on your behalf. Everyday, low-risk purchases complete automatically. Purchases in higher-risk categories (gift cards, wire transfers, gambling, crypto) or that look unusual for your account are paused and require your explicit approval in the Alexa app before they complete — Alexa+ itself never approves its own halted purchase.",
+        "fullDescription": "Alguard evaluates every purchase, booking, or subscription Alexa+ attempts on your behalf. Everyday, low-risk purchases complete automatically. Purchases in higher-risk categories (gift cards, wire transfers, gambling, crypto) or that look unusual for your account are paused and require your explicit approval in the Alexa app before they complete — Alexa+ itself never approves its own halted purchase.",
         "examplePhrases": [
           "Buy a $50 gift card from that site",
           "Subscribe to this service for me",
@@ -33,7 +33,7 @@
             "dark": []
           },
           "carouselImages": [
-            { "uri": "https://REPLACE_ME.example.com/carousel-1.png", "altText": "Purchase Guard halting a risky purchase for approval", "size": "600x900" }
+            { "uri": "https://REPLACE_ME.example.com/carousel-1.png", "altText": "Alguard halting a risky purchase for approval", "size": "600x900" }
           ],
           "bannerImages": []
         }

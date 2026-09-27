@@ -43,7 +43,7 @@ from jwt import PyJWKClient
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.provider import AccessToken, TokenVerifier
 
-logger = logging.getLogger("Albugent-Alexa-MCP.auth")
+logging.getLogger("Alguard.auth")
 
 _DEV_PLACEHOLDER = "UNVERIFIED_DEV_AGENT"
 

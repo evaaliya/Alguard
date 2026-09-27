@@ -32,7 +32,7 @@ from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-logger = logging.getLogger("Albugent-Alexa-MCP.receipts")
+logging.getLogger("Alguard.receipts")
 
 RECEIPTS_LEDGER_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "receipts_ledger.jsonl"
 
