@@ -14,6 +14,12 @@ STATUS_RANK = {"OK": 0, "MONITOR": 1, "HALTED": 2}
 
 
 def _own_status(risk_result: Dict[str, Any]) -> Tuple[str, str]:
+    if risk_result.get("over_absolute_limit"):
+        return "HALTED", (
+            f"amount ${risk_result.get('amount'):,.2f} is above the "
+            f"${risk_result.get('absolute_amount_limit'):,.0f} absolute limit -- "
+            f"purchases above it always need your approval, whatever the category"
+        )
     if risk_result.get("is_high_risk"):
         return "HALTED", (
             f"risk_score {risk_result['risk_score']} >= threshold "

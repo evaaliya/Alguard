@@ -9,11 +9,13 @@ from typing import Any, Dict, List
 from statistics import mean, pstdev
 
 from mcp_server.utils.db_utils import get_agent_history
+from mcp_server.utils.risk_evaluator import ABSOLUTE_AMOUNT_LIMIT
 
 NEW_MERCHANT_FLAG = "new_merchant"
 AMOUNT_SPIKE_FLAG = "amount_spike"
 FREQUENCY_SPIKE_FLAG = "frequency_spike"
 DUPLICATE_ATTEMPT_FLAG = "duplicate_attempt"
+AMOUNT_OVER_LIMIT_FLAG = "amount_over_limit"
 
 # Minimum history before we trust a mean/stdev comparison at all — avoids flagging
 # every single action for a brand-new agent as "anomalous" purely for lack of data.
@@ -38,6 +40,14 @@ def profile_purchase_attempt(
         "flags": [],
         "details": {},
     }
+
+    # Hard-limit flag: recorded so the audit trail and the customer-facing explanation
+    # show WHY it was halted. The halt itself is enforced in risk_evaluator.py.
+    if amount is not None and amount > ABSOLUTE_AMOUNT_LIMIT:
+        summary["flags"].append(AMOUNT_OVER_LIMIT_FLAG)
+        summary["details"][AMOUNT_OVER_LIMIT_FLAG] = {
+            "amount": amount, "limit": ABSOLUTE_AMOUNT_LIMIT,
+        }
 
     # 0. Duplicate-attempt check -- Alexa+ Functional Requirements, Transaction Flow:
     # "Detect and prevent duplicate transactions." Scoped to THIS session: the same

@@ -152,6 +152,7 @@ const SEVERITY = {
   electronics:'Low', dining:'Low', travel:'Low', other:'Low'
 };
 const SEV_WEIGHT = {High:0.45, Medium:0.25, Low:0.10};
+const ABSOLUTE_LIMIT = 1000; // USD; strictly above this is always HALTED
 
 let history = [];
 let trust = 0.5;
@@ -162,6 +163,8 @@ function stdev(a){const m=mean(a); const v=mean(a.map(x=>(x-m)*(x-m))); return M
 
 function decide(item, category, merchant, amount){
   const flags = [];
+  const overLimit = amount > ABSOLUTE_LIMIT;
+  if(overLimit) flags.push('amount_over_limit');
   const knownMerchants = new Set(history.map(h=>h.merchant));
   if(history.length>0 && !knownMerchants.has(merchant)) flags.push('new_merchant');
 
@@ -176,10 +179,12 @@ function decide(item, category, merchant, amount){
   const severity = SEVERITY[category] || 'Low';
   const anomalyScore = Math.min(flags.length*0.15, 0.4);
   const trustPenalty = (1-trust)*0.2;
-  const risk = Math.round(Math.min(SEV_WEIGHT[severity]+anomalyScore+trustPenalty, 1)*100)/100;
+  let risk = Math.round(Math.min(SEV_WEIGHT[severity]+anomalyScore+trustPenalty, 1)*100)/100;
+  if(overLimit) risk = Math.max(risk, 0.65);
 
   let status, reason;
-  if(risk>=0.65){ status='HALTED'; reason=`risk_score ${risk} >= threshold (category_severity=${severity}, anomaly_flags=[${flags.join(', ')}])`; }
+  if(overLimit){ status='HALTED'; reason=`amount $${amount.toLocaleString('en-US')} is above the $${ABSOLUTE_LIMIT.toLocaleString('en-US')} absolute limit -- purchases above it always need your approval, whatever the category`; }
+  else if(risk>=0.65){ status='HALTED'; reason=`risk_score ${risk} >= threshold (category_severity=${severity}, anomaly_flags=[${flags.join(', ')}])`; }
   else if(flags.length>0){ status='MONITOR'; reason=`anomaly_flags present: [${flags.join(', ')}]`; }
   else { status='OK'; reason='no risk signals'; }
 
