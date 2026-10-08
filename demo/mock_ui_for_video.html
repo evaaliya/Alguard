@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Alguard — live demo (real engine)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#EFF6FC; --panel:#FFFFFF; --panel2:#F5FAFF; --line:#D6E6F5;
+    --text:#122436; --muted:#5E7690;
+    --ok:#1E9E6C; --monitor:#C97C11; --halted:#D23F3F;
+    --glow1:#12C2E9; --glow2:#7B5CFA; --glow3:#FF5FA8;
+    --sans:'DM Sans', ui-sans-serif, sans-serif;
+    --mono:'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{min-height:100%;}
+  body{margin:0; background:var(--bg); color:var(--text); font-family:var(--sans);
+    padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);}
+  header{padding:26px 28px 18px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:18px;}
+  .orb{width:44px;height:44px;border-radius:50%;flex:none;
+    background:conic-gradient(from 180deg,var(--glow1),var(--glow2),var(--glow3),var(--glow1));
+    box-shadow:0 0 22px rgba(123,92,250,.55); animation:spin 6s linear infinite;}
+  @media (prefers-reduced-motion: reduce){ .orb{animation:none;} }
+  @keyframes spin{ to{ transform:rotate(360deg);} }
+  header h1{font-size:24px;margin:0 0 4px;font-weight:700;letter-spacing:-.01em;}
+  header p{margin:0;color:var(--muted);max-width:74ch;line-height:1.5;font-size:14px;}
+  .rule{font-family:var(--mono);font-size:11px;color:var(--glow1);margin-top:8px;}
+  #banner{display:none;margin:14px 28px 0;padding:10px 14px;border-radius:10px;font-size:13px;line-height:1.5;
+    background:rgba(210,63,63,.1);color:var(--halted);border:1px solid rgba(210,63,63,.3);font-family:var(--mono);}
+  .attacks{padding:14px 28px;border-bottom:1px solid var(--line);display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  .attacks .lbl{font-family:var(--mono);font-size:11px;color:var(--muted);margin-right:6px;}
+  .chip{margin:0;background:var(--panel);color:var(--text);border:1px solid var(--line);padding:8px 14px;font-size:12px;}
+  .chip:hover:not(:disabled){border-color:var(--glow2);}
+  .chip:disabled{opacity:.5;cursor:wait;}
+  .layout{display:grid;grid-template-columns:1fr 1px 1fr;}
+  .divider{background:var(--line);}
+  .col{padding:22px 26px;min-width:0;}
+  .col h2{font-size:12px;letter-spacing:.03em;color:var(--muted);margin:0 0 4px;font-family:var(--mono);font-weight:500;}
+  .col .sub{font-size:13px;color:var(--muted);margin:0 0 14px;line-height:1.5;}
+  label{display:block;font-size:12px;color:var(--muted);margin:10px 0 5px;font-family:var(--mono);}
+  input,select{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);
+    padding:10px 12px;border-radius:10px;font-family:var(--sans);font-size:14px;}
+  input:focus,select:focus{outline:2px solid var(--glow1);outline-offset:1px;}
+  button{font-family:var(--sans);font-weight:700;font-size:13px;border:none;border-radius:999px;
+    padding:11px 20px;cursor:pointer;margin-top:14px;}
+  .attempt-btn{background:linear-gradient(90deg,var(--glow1),var(--glow2));color:#04121A;}
+  .reset-btn{background:transparent;color:var(--muted);border:1px solid var(--line);margin-left:8px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:12px;}
+  .card .top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;}
+  .card .item{font-size:15px;font-weight:700;overflow-wrap:anywhere;}
+  .badge{font-family:var(--mono);font-size:11px;padding:3px 10px;border-radius:999px;letter-spacing:.02em;flex:none;}
+  .badge.OK,.badge.APPROVED{background:rgba(30,158,108,.14);color:var(--ok);}
+  .badge.MONITOR{background:rgba(201,124,17,.14);color:var(--monitor);}
+  .badge.HALTED,.badge.DENIED{background:rgba(210,63,63,.14);color:var(--halted);}
+  .badge.DUP{background:rgba(94,118,144,.16);color:var(--muted);}
+  .meta{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:6px;overflow-wrap:anywhere;}
+  .explain{font-size:13px;margin-top:8px;line-height:1.5;overflow-wrap:anywhere;}
+  .server{font-family:var(--mono);font-size:11px;margin-top:8px;padding:8px 10px;border-radius:8px;
+    background:var(--panel2);border:1px dashed var(--line);line-height:1.5;overflow-wrap:anywhere;}
+  .server b{color:var(--glow2);}
+  details{margin-top:8px;} summary{font-family:var(--mono);font-size:11px;color:var(--muted);cursor:pointer;}
+  pre{margin:6px 0 0;padding:8px 10px;background:var(--panel2);border-radius:8px;font-family:var(--mono);
+    font-size:11px;overflow-x:auto;white-space:pre-wrap;overflow-wrap:anywhere;}
+  .actions{margin-top:10px;display:flex;gap:8px;}
+  .approve{background:var(--ok);color:#04150C;} .deny{background:var(--halted);color:#210407;}
+  .empty{color:var(--muted);font-size:13px;font-style:italic;}
+  .trust{font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:12px;}
+  .phone-note{font-size:12px;color:var(--muted);background:var(--panel2);border:1px dashed var(--line);
+    border-radius:10px;padding:10px 12px;margin-bottom:14px;line-height:1.5;}
+  .caveat{font-size:11px;color:var(--monitor);font-family:var(--mono);margin-top:6px;}
+  @media (max-width:820px){ .layout{grid-template-columns:1fr;} .divider{display:none;}
+    .col:first-child{border-bottom:1px solid var(--line);} }
+</style>
+</head>
+<body>
+<header>
+  <div class="orb"></div>
+  <div>
+    <h1>Alguard</h1>
+    <p>A risk layer between Alexa+ and any purchase it tries to make for you. Every decision on this page comes from the <b>real server engine</b> — this page contains no decision logic. Left: what the assistant can do and see. Right: what only you can do and see.</p>
+    <div class="rule">the system that requests a risky action can never approve it itself</div>
+  </div>
+</header>
+<div id="banner"></div>
+
+<div class="attacks">
+  <span class="lbl">RED-TEAM REPLAY → real engine:</span>
+  <button class="chip" data-sc="firstgift">First gift card</button>
+  <button class="chip" data-sc="launder">Launder a halt by retrying</button>
+  <button class="chip" data-sc="lie">Lie about category</button>
+  <button class="chip" data-sc="rotate">Rotate session_id</button>
+  <button class="chip" data-sc="serial">Serial $999 flights</button>
+  <button class="chip" data-sc="dupe">Double-tap</button>
+</div>
+
+<div class="layout">
+  <div class="col">
+    <h2>ALEXA+ · voice &amp; conversation</h2>
+    <p class="sub">The agent can attempt a purchase and read back the reply. It never sees scores, flags or thresholds — expand “raw tool response” to check.</p>
+    <div class="trust" id="trustLine">user trust score: …</div>
+
+    <label>Item</label><input id="item" value="Gift card bundle">
+    <label>Category (agent-declared — the server does not take its word)</label>
+    <select id="category"></select>
+    <label>Merchant</label><input id="merchant" value="random-giftcard-site">
+    <label>Amount (USD)</label><input id="amount" type="number" value="500" step="0.01">
+    <label>session_id (agent-chosen; changing it changes nothing)</label><input id="session" value="">
+
+    <div>
+      <button class="attempt-btn" id="attemptBtn">"Alexa, buy this"</button>
+      <button class="reset-btn" id="resetBtn">Reset demo user</button>
+    </div>
+    <div style="margin-top:20px;" id="agentLog"></div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="col">
+    <h2>ALEXA APP · your phone</h2>
+    <p class="sub">Only you can approve or deny here, and only before the request expires. This is the server’s own assessment — the agent never receives it.</p>
+    <div class="phone-note">Saying “yes” to Alexa doesn’t reach this screen. Only a tap here does. (Demo identity is a random browser id; production Tier 2 requires a verified Bearer token and fails closed.)</div>
+    <div id="pendingLog"></div>
+    <div id="resolvedLog"></div>
+  </div>
+</div>
+
+<script>
+const API = (location.protocol === 'file:') ? '' : location.origin;
+const $ = id => document.getElementById(id);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rid = () => Math.random().toString(36).slice(2, 10);
+const uid = (() => { let u = sessionStorage.getItem('alguard_uid');
+  if (!u) { u = 'browser-' + rid() + rid(); try { sessionStorage.setItem('alguard_uid', u); } catch(e) {} } return u; })();
+const raw = {};   // action_id -> the exact agent_response JSON the tool returned
+let busy = false;
+
+function banner(msg){ const b=$('banner'); b.style.display = msg ? 'block' : 'none'; b.textContent = msg || ''; }
+
+async function api(path, opts = {}) {
+  if (!API) throw new Error('Open this page via the demo server: python -m web_api.demo_server  →  http://127.0.0.1:8020');
+  let res;
+  try { res = await fetch(API + path, {...opts, headers: {'Content-Type':'application/json','X-Demo-User':uid}}); }
+  catch (e) { throw new Error('Cannot reach the demo backend. Start it: python -m web_api.demo_server'); }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof body.detail === 'string' ? body.detail : 'Request failed (' + res.status + ')');
+  return body;
+}
+
+async function attempt(payload) {
+  const r = await api('/demo/attempt', {method:'POST', body: JSON.stringify(payload)});
+  raw[r.agent_response.action_id] = r.agent_response;
+  return r;
+}
+
+function timeLeft(iso) {
+  const s = Math.round((new Date(iso) - Date.now()) / 1000);
+  return s <= 0 ? 'expired' : Math.floor(s/60) + 'm ' + (s%60) + 's left';
+}
+
+async function refresh() {
+  const st = await api('/demo/state');
+  $('trustLine').textContent = 'user trust score: ' + st.trust.toFixed(2);
+
+  const log = $('agentLog');
+  log.innerHTML = st.agent_log.length ? '' : '<div class="empty">No attempts yet.</div>';
+  st.agent_log.forEach(a => {
+    const r = raw[a.action_id];
+    const badge = (r && r.duplicate) ? 'DUP' : a.status;
+    log.innerHTML += `<div class="card">
+      <div class="top"><span class="item">${esc(a.item)}</span><span class="badge ${badge}">${esc(badge === 'DUP' ? 'DUPLICATE' : a.status)}</span></div>
+      <div class="meta">${esc(a.action_id)} · $${Number(a.amount).toFixed(2)} · ${esc(a.merchant)}</div>
+      <div class="explain">${esc(r ? r.message : (a.awaiting_customer_approval ? 'Waiting for the customer’s approval.' : 'Recorded.'))}</div>
+      ${a.resolution ? `<div class="meta">Customer resolved: <span class="badge ${esc(a.resolution)}">${esc(a.resolution)}</span></div>` : ''}
+      ${r ? `<details><summary>raw tool response (all the agent gets)</summary><pre>${esc(JSON.stringify(r, null, 2))}</pre></details>` : ''}
+    </div>`;
+  });
+
+  const pend = $('pendingLog');
+  pend.innerHTML = st.pending.length ? '' : '<div class="empty">Nothing waiting on you right now.</div>';
+  st.pending.forEach(p => {
+    pend.innerHTML += `<div class="card">
+      <div class="top"><span class="item">${esc(p.agent_reported.item)}</span><span class="badge HALTED">NEEDS YOU</span></div>
+      <div class="meta">${esc(p.action_id)} · $${Number(p.agent_reported.amount).toFixed(2)} · ${esc(p.agent_reported.merchant)} · ${timeLeft(p.expires_at)}</div>
+      <div class="caveat">item / merchant / amount / category below were REPORTED BY THE AGENT</div>
+      <div class="server"><b>server assessment</b> · severity ${esc(p.server_assessed.severity)} · risk ${esc(p.server_assessed.risk_score)}<br>${esc(p.server_assessed.why)}</div>
+      <div class="actions">
+        <button class="approve" data-act="${esc(p.action_id)}" data-ok="1">Approve</button>
+        <button class="deny" data-act="${esc(p.action_id)}" data-ok="0">Deny</button>
+      </div>
+    </div>`;
+  });
+
+  $('resolvedLog').innerHTML = st.resolved.map(r =>
+    `<div class="meta">${esc(r.item)} ($${Number(r.amount).toFixed(2)}) → <span class="badge ${esc(r.resolution)}">${esc(r.resolution)}</span></div>`).join('');
+}
+
+async function safe(fn) {
+  try { banner(''); await fn(); } catch (e) { banner(e.message); }
+}
+
+$('attemptBtn').onclick = () => safe(async () => {
+  await attempt({
+    session_id: $('session').value.trim() || 'sess_' + rid(),
+    item: $('item').value, category: $('category').value,
+    merchant: $('merchant').value, amount: parseFloat($('amount').value),
+  });
+  await refresh();
+});
+
+$('resetBtn').onclick = () => safe(async () => { await api('/demo/reset', {method:'POST'}); Object.keys(raw).forEach(k => delete raw[k]); await refresh(); });
+
+$('pendingLog').onclick = e => {
+  const t = e.target.closest('button[data-act]'); if (!t) return;
+  safe(async () => { await api('/demo/resolve/' + encodeURIComponent(t.dataset.act) + '?approved=' + (t.dataset.ok === '1'), {method:'POST'}); await refresh(); });
+};
+
+// Each scenario = a sequence of REAL attempts; the page only sends them and renders results.
+const S = (item, category, merchant, amount, session = 'sess_main') => ({session_id: session, item, category, merchant, amount});
+const SCENARIOS = {
+  firstgift: [S('Gift card', 'gift_card', 'giftsite', 500)],
+  launder:   [S('USB-C cable', 'electronics', 'amazon_basics', 12.99), S('Gift card', 'gift_card', 'evil.com', 500),
+              S('Gift card', 'gift_card', 'evil.com', 501)],
+  lie:       [S('Bitcoin top-up', 'other', 'cryptoshop', 80)],
+  rotate:    [S('Gift card', 'gift_card', 'evil.com', 500, 'sess_A'), S('Laptop', 'electronics', 'newshop', 300, 'sess_BRAND_NEW')],
+  serial:    [S('Flight 1', 'travel', 'amazon', 999), S('Flight 2', 'travel', 'amazon', 999), S('Flight 3', 'travel', 'amazon', 999)],
+  dupe:      [S('Book', 'entertainment', 'amazon', 20, 'sess_1'), S('Book', 'entertainment', 'amazon', 20, 'sess_2')],
+};
+
+document.querySelectorAll('.chip').forEach(btn => btn.onclick = () => {
+  if (busy) return; busy = true;
+  document.querySelectorAll('.chip').forEach(b => b.disabled = true);
+  safe(async () => {
+    await api('/demo/reset', {method:'POST'}); Object.keys(raw).forEach(k => delete raw[k]);
+    for (const step of SCENARIOS[btn.dataset.sc]) { await attempt(step); await refresh(); await new Promise(r => setTimeout(r, 650)); }
+  }).finally(() => { busy = false; document.querySelectorAll('.chip').forEach(b => b.disabled = false); });
+});
+
+(async () => {
+  $('session').value = 'sess_' + rid();
+  await safe(async () => {
+    const meta = await api('/demo/meta');
+    $('category').innerHTML = meta.categories.map(c => `<option value="${esc(c)}"${c==='gift_card'?' selected':''}>${esc(c)}</option>`).join('');
+    await refresh();
+  });
+  setInterval(() => { if (!busy) refresh().catch(() => {}); }, 15000);   // keeps expiry countdowns honest
+})();
+</script>
+</body>
+</html>

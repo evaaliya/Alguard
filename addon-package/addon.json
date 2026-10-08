@@ -1,0 +1,56 @@
+{
+  "manifestVersion": "1.0",
+  "storeListing": {
+    "distributionCountries": ["US"],
+    "locales": {
+      "en-US": {
+        "default": "DEFAULT",
+        "name": {
+          "value": "Alguard",
+          "spokenForm": { "format": "ipa", "value": "ˈælɡɑrd" }
+        },
+        "shortDescription": "Risk-gates purchases Alexa+ attempts on your behalf before they complete",
+        "fullDescription": "Alguard evaluates every purchase, booking, or subscription Alexa+ attempts on your behalf. Everyday, low-risk purchases complete automatically. Purchases in higher-risk categories (gift cards, wire transfers, gambling, crypto) or that look unusual for your account are paused and require your explicit approval in the Alexa app before they complete — Alexa+ itself never approves its own halted purchase.",
+        "examplePhrases": [
+          "Buy a $50 gift card from that site",
+          "Subscribe to this service for me",
+          "Check the status of my last purchase attempt"
+        ],
+        "privacyAndCompliance": {
+          "privacyPolicyUrl": "https://REPLACE_ME.example.com/privacy",
+          "termsOfUseUrl": "https://REPLACE_ME.example.com/terms"
+        },
+        "mediaAssets": {
+          "icons": {
+            "light": [
+              { "size": "72x72", "uri": "https://REPLACE_ME.example.com/icon-72x72.png" },
+              { "size": "64x64", "uri": "https://REPLACE_ME.example.com/icon-64x64.png" },
+              { "size": "88x88", "uri": "https://REPLACE_ME.example.com/icon-88x88.png" },
+              { "size": "126x126", "uri": "https://REPLACE_ME.example.com/icon-126x126.png" },
+              { "size": "180x180", "uri": "https://REPLACE_ME.example.com/icon-180x180.png" },
+              { "size": "241x241", "uri": "https://REPLACE_ME.example.com/icon-241x241.png" }
+            ],
+            "dark": []
+          },
+          "carouselImages": [
+            { "uri": "https://REPLACE_ME.example.com/carousel-1.png", "altText": "Alguard halting a risky purchase for approval", "size": "600x900" }
+          ],
+          "bannerImages": []
+        }
+      }
+    }
+  },
+  "integrations": [
+    {
+      "type": "MCP",
+      "config": {
+        "endpoints": {
+          "default": {
+            "type": "HTTPS",
+            "uri": "https://REPLACE_ME_WITH_YOUR_TUNNEL_OR_DEPLOYED_URL.example.com"
+          }
+        }
+      }
+    }
+  ]
+}
