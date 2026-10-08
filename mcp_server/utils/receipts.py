@@ -31,11 +31,10 @@ import smtplib
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, Dict, Optional
-
+logger = logging.getLogger("Alguard.receipts")
 
 RECEIPTS_LEDGER_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "receipts_ledger.jsonl"
 
-logging.getLogger("Alguard.receipts")
 
 def _append_to_ledger(decision: Dict[str, Any]) -> None:
     """The always-on channel -- a durable receipt record, no config needed."""

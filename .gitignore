@@ -7,3 +7,6 @@ data/*.db
 data/*.db-wal
 data/*.db-shm
 data/receipts_ledger.jsonl
+.env.bak
+.env.*.bak
+*.bak

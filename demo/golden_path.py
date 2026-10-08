@@ -57,7 +57,7 @@ async def main():
                 "item": "USB-C cable", "category": "electronics",
                 "merchant": "amazon_basics", "amount": 12.99,
             })
-            print(f"  {GREEN}{r['status']}{RESET}  {r['message']}")
+            print(f"  {GREEN}{r.get('status', '?') if isinstance(r, dict) else '?'}{RESET}  {r.get('message', r) if isinstance(r, dict) else r}")
 
             pause("Step 2: high-risk purchase — should HALT, agent has no approval tool")
             r = await call_tool(session, "attempt_purchase", {

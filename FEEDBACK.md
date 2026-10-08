@@ -19,9 +19,6 @@ MCP Design Guide for Alexa+ end to end.
 - The spec 2025-11-25 requirement of Streamable HTTP is a clear, single
   technical constraint — no ambiguity about which transport to build.
 - `addon.json` schema from the QuickStart Guide is small and machine-checkable.
-- `alexa-ai configure` + `alexa-ai deploy` — the CLI onboarding flow is
-  the cleanest part of the whole DX. One command for LWA login, one for
-  deploy, everything else is standard MCP.
 - The Design Guide's "Tools, Schema, and Data Design" section is the single
   most useful document in the whole toolkit. The "declare only what you
   honor" rule directly changed our code (we removed an `agent_id` tool
@@ -47,8 +44,7 @@ MCP Design Guide for Alexa+ end to end.
   (it was the last one — see AWS Builder section). Clearer error text
   would have saved hours.
 
-**Onboarding feel:** 4/5. The CLI is great, the docs are precise. The
-Web Simulator access wall costs it the last point.
+**Onboarding feel:** N/A — CLI gated behind Private Preview, see FRICTION_LOG.md #1
 
 **Would I build with it again:** yes — but only with Private Preview
 access confirmed before the hackathon starts.
