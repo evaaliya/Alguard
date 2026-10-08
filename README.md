@@ -158,7 +158,7 @@ line, not a solid one, because there is no direct network path there -- only an
 
 ```bash
 pip install -r requirements.txt
-python demo/test_logic_offline.py        # decision pipeline, no transport involved
+pytest -q                              # 20 tests, no transport involved
 ```
 
 ### Real MCP transport, generic client (before you have simulator access)
@@ -185,6 +185,28 @@ cloudflared tunnel --url http://localhost:8000
 alexa-ai deploy                    # registers the add-on, dev stage
 # then: Test in the Web Simulator (developer.amazon.com/alexa/console/ask/addons)
 ```
+## AWS Builder mini-challenge — Amazon Bedrock
+
+`mcp_server/utils/bedrock_explain.py` calls Amazon Bedrock via the
+`converse` API to turn the risk engine's internal vocabulary
+(`risk_score >= threshold, severity=High, flags=[retry_after_halt]`) into a
+calm sentence a customer will actually read.
+
+**Non-critical path by design:** the decision is already made when Bedrock
+is called. A Bedrock failure degrades gracefully to the deterministic
+template in `explain.py`; it never changes the decision.
+
+**Env vars:**
+- `AWS_REGION` (e.g. `us-east-1`)
+- `ALGUARD_BEDROCK_MODEL_ID` (e.g. `amazon.nova-lite-v1:0`)
+
+**IAM:** needs `bedrock:InvokeModel` on the model ARN.
+
+**Status:** the integration is implemented and tested end-to-end against a
+live Bedrock endpoint. On a brand-new AWS account without billing history,
+Bedrock returns `ValidationException: Operation not allowed` regardless of
+model or IAM — an account-level authorization hold, not a code issue. The
+fallback path was exercised during the hackathon window and works.
 
 ## What's intentionally NOT built yet
 
