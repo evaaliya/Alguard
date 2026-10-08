@@ -4,7 +4,7 @@ Two audiences, two views:
     no thresholds, no flag names, no severity, no hard-rule list. Otherwise the response
     is an oracle a hostile agent can bisect until a purchase passes.
   - internal_explanation(): full reason; shown ONLY on the authenticated Tier 2 screen.
-Deterministic templates only (Bedrock path removed).
+Deterministic fallback; Bedrock path lives in bedrock_explain.py.
 """
 from typing import Any, Dict
 

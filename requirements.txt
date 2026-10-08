@@ -12,6 +12,5 @@ httpx>=0.27
 # real authorization server -- nothing Amazon/Alexa-specific here.
 pyjwt[crypto]>=2.7.0
 pytest>=8.0
-pytest>=8.0
 boto3>=1.34
 python-dotenv>=1.0
