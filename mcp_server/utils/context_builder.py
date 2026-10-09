@@ -31,7 +31,11 @@ def build_purchase_decision(
     )
 
     cutoff = iso(now - timedelta(hours=CIRCUIT_WINDOW_HOURS))
-    status, reason = compute_action_status(risk, [h for h in history if h["created_at"] >= cutoff])
+    status, reason = compute_action_status(
+        risk,
+        [h for h in history if h["created_at"] >= cutoff],
+        now=now,
+    )
 
     return {
         "action_id": new_id("act"),
