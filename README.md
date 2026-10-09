@@ -21,18 +21,20 @@ end to end, not just "an MCP server that happens to work":
 - **Transport & spec**: Streamable HTTP, MCP spec 2025-11-25+ (Alexa+ MCP Toolkit's
   hard technical requirement -- the legacy SSE transport is not accepted).
 - **Onboarding**: `addon-package/addon.json` (this repo includes one, schema per the
-  QuickStart Guide) + the **Alexa AI CLI** -- `alexa-ai configure`, then either the
-  Add-on Agent Skill or `alexa-ai new mcp` / `alexa-ai deploy` manually. This is how
-  the MCP server actually gets registered with Alexa+; it is not something you can
-  fake with your own web server.
+  QuickStart Guide). The **Alexa AI CLI** (`alexa-ai configure` / `alexa-ai deploy`)
+  is the documented registration path, but it is gated behind Private Preview --
+  `npm install -g @alexa-ai/cli` returns 404 on the public npm registry (see
+  `FRICTION_LOG.md` #1). We built the MCP server to spec and tested it with a generic
+  MCP client (`demo/simulate_session.py`, `demo/golden_path.py`, `demo/agent_demo.py`)
+  plus the browser UI (`web_api/demo_server.py`).
 - **Tool design**: every tool below follows the Design Guide's "Tools, Schema, and
   Data Design" rules -- one tool per customer intent, a description stating when/why
   to call it and what it returns, and "declare only what you honor" (see the
   `agent_id` note below).
 - **Testing**: the guide-prescribed path is "Test in the Web Simulator" after
-  `alexa-ai deploy`. `demo/simulate_session.py` is a stand-in generic MCP client for
-  local development before you have simulator access; `demo/test_logic_offline.py`
-  exercises the decision pipeline with no MCP transport at all.
+  `alexa-ai deploy`. Until simulator access is available, `demo/simulate_session.py`
+  and `demo/agent_demo.py` are stand-in generic MCP clients; `pytest -q` exercises
+  the decision pipeline with no MCP transport at all.
 
 ### A correction the Design Guide forced
 
@@ -158,7 +160,7 @@ line, not a solid one, because there is no direct network path there -- only an
 
 ```bash
 pip install -r requirements.txt
-pytest -q                              # 20 tests, no transport involved
+pytest -q                              # decision pipeline, no transport involved
 ```
 
 ### Real MCP transport, generic client (before you have simulator access)
@@ -202,11 +204,13 @@ template in `explain.py`; it never changes the decision.
 
 **IAM:** needs `bedrock:InvokeModel` on the model ARN.
 
-**Status:** the integration is implemented and tested end-to-end against a
-live Bedrock endpoint. On a brand-new AWS account without billing history,
-Bedrock returns `ValidationException: Operation not allowed` regardless of
-model or IAM — an account-level authorization hold, not a code issue. The
-fallback path was exercised during the hackathon window and works.
+**Status:** implemented. On our test AWS account Bedrock returned
+`ValidationException: Operation not allowed` for every model
+(Anthropic, DeepSeek, Nova) regardless of IAM policy or Model access state —
+an account-level authorization hold, not a code issue (see `FRICTION_LOG.md`
+#2). The Bedrock call site is live in `bedrock_explain.py`; the deterministic
+fallback in `explain.py` is what runs in the demo (see `demo/golden_path.py`
+Step 2).
 
 ## What's intentionally NOT built yet
 
@@ -262,7 +266,12 @@ closed enum), (b) re-derives severity from item/merchant text and an unknown-mer
 end user -- not to `session_id`, not to the Alexa `client_id`.
 
 **Hard rules** (cannot be out-scored): >$1000 single purchase, >$1500/h or >$3000/24h spend,
-High-severity category, retrying a merchant that was halted and never approved.
+High-severity category, retrying a merchant that was halted and never approved within the
+last 24h, and any purchase above `ALGUARD_UNKNOWN_MERCHANT_CAP` (default $250) at a merchant
+this user has not explicitly approved before.
+**Merchant trust** comes only from a human APPROVED resolution — not from a static allowlist.
+A merchant that was never approved is treated as unknown, even if the agent uses a familiar
+name (`amazon`, `amazon_basics`, ...).
 **Circuit breaker:** while a user has an unresolved or denied HALT (24h), any non-Low purchase
 is HALTED; approval by the human closes it.
 **Tier 2:** fails closed; Bearer JWT with its own audience + `approve` scope; approvals are owner-

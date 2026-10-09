@@ -1,16 +1,21 @@
-# Pinned <2.0.0: mcp 2.0.0 (released 2026-07-28) renamed FastMCP -> MCPServer and
-# streamablehttp_client -> streamable_http_client with a different signature. Both
-# the 1.x and 2.x lines already satisfy the Alexa+ MCP Toolkit's requirement of
-# Streamable HTTP + MCP spec 2025-11-25+ -- this pin is purely to keep this repo's
-# code (mcp_server/server.py, demo/simulate_session.py) valid as written.
+# Runtime dependencies only. Dev/test deps: requirements-dev.txt.
+
+# MCP SDK. Pinned <2.0.0: 2.0.0 renamed FastMCP -> MCPServer and
+# streamablehttp_client -> streamable_http_client with no compatibility shim.
+# Streamable HTTP + spec 2025-11-25+ is the Alexa+ MCP Toolkit requirement.
 mcp[cli]>=1.10,<2.0.0
+
 fastapi>=0.115
 uvicorn>=0.30
 httpx>=0.27
 
-# OAuth 2.1 resource-server token verification (auth_context.py). Works with any
-# real authorization server -- nothing Amazon/Alexa-specific here.
+# OAuth 2.1 resource-server token verification (auth_context.py).
 pyjwt[crypto]>=2.7.0
-pytest>=8.0
-boto3>=1.34
+
+# .env loader.
 python-dotenv>=1.0
+
+# Bedrock integration for customer-facing explanations (optional; non-critical
+# path — bedrock_explain.py falls back to a deterministic template).
+boto3>=1.34
+pytest>=8.0

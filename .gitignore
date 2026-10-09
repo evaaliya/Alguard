@@ -10,3 +10,4 @@ data/receipts_ledger.jsonl
 .env.bak
 .env.*.bak
 *.bak
+.DS_Store
