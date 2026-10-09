@@ -123,13 +123,15 @@ flowchart TB
         AlexaPlus["Alexa+<br/>MCP client"]
         Tools["Tools exposed:<br/>attempt_purchase<br/>get_session_status<br/>get_audit_trail<br/><br/>(no approve/deny tool exists here)"]
         RiskEngine["Risk engine<br/>category severity + anomalies<br/>+ agent trust score"]
-        CircuitBreaker["Session circuit breaker<br/>(one HALT drags later<br/>steps in-session to MONITOR)"]
+        CircuitBreaker["Owner circuit breaker<br/>(an open halt blocks later<br/>non-Low purchases for that user)"]
         Decision{{"Decision"}}
+        DB[("actions_log.db<br/>SQLite (owned by Tier 1)")]
     end
 
     subgraph Tier2["TIER 2 — Human channel (separate service, port 8010)"]
         direction TB
         HumanApp["Alexa app / account-linked<br/>identity (human only)"]
+        Tier2Store["Tier2Store<br/>read-only reads + one<br/>atomic resolve (no direct DB writes)"]
         Resolve["resolve_pending_action<br/>APPROVE / DENY"]
         Receipts[("Receipts ledger<br/>+ email")]
     end
@@ -139,6 +141,7 @@ flowchart TB
     Tools --> RiskEngine
     RiskEngine --> CircuitBreaker
     CircuitBreaker --> Decision
+    Decision --> DB
 
     Decision -->|"OK"| Complete1["Purchase completes"]
     Decision -->|"MONITOR"| Complete2["Purchase completes,<br/>flagged for review"]
@@ -148,7 +151,9 @@ flowchart TB
     Complete2 --> Receipts
 
     Blocked -.->|"action_id<br/>(no network path back to Tier 1)"| HumanApp
-    HumanApp --> Resolve
+    HumanApp --> Tier2Store
+    Tier2Store --> Resolve
+    Tier2Store -.->|"read-only reads + single atomic write"| DB
     Resolve -->|"APPROVED"| Receipts
     Resolve -->|"DENIED"| Dropped["Purchase stays blocked"]
 
@@ -159,6 +164,8 @@ flowchart TB
     style Complete1 fill:#46a578,stroke:#46a578,color:#fff
     style Complete2 fill:#e0a93e,stroke:#e0a93e,color:#141414
     style Resolve fill:#121b2e,stroke:#1e2436,color:#e7ecf3
+    style DB fill:#1b2437,stroke:#3b82f6,color:#e7ecf3
+    style Tier2Store fill:#121b2e,stroke:#1e2436,color:#e7ecf3
 ```
 
 The dashed arrow from `Blocked` to the human channel is deliberate: it's a dashed
@@ -170,8 +177,10 @@ line, not a solid one, because there is no direct network path there -- only an
 ### Local development / logic check (no Amazon account needed)
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.txt        # runtime deps (pinned)
 pip install -r requirements-dev.txt    # pytest + test-only deps
+# fully reproducible install (exact transitive versions):
+# pip install -r requirements.lock
 pytest -q                              # decision pipeline, no transport involved
 ```
 
