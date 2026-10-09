@@ -96,18 +96,53 @@ network path there — only an `action_id` the customer carries to a separate se
 Both tiers fail closed without OAuth; set `ALGUARD_DEV_MODE=1` for local dev.
 
 ```bash
+# Prerequisites: Python 3.11+
+
+# 1. Create a virtual environment
+python3 -m venv .venv
+
+# 2. Activate it
+source .venv/bin/activate        # macOS / Linux
+# .venv\Scripts\activate         # Windows (PowerShell)
+
+# 3. Install dependencies
 pip install -r requirements.txt        # runtime deps (pinned)
 pip install -r requirements-dev.txt    # pytest + test-only deps
+
+# 4. Run the tests
 pytest -q                              # 61 tests, no MCP transport needed
 ```
 
+**macOS / Linux:**
+
 ```bash
+source .venv/bin/activate
+
 # terminal 1 — Tier 1 (MCP server, port 8000)
-ALGUARD_DEV_MODE=1 python -m mcp_server.server
+ALGUARD_DEV_MODE=1 python3 -m mcp_server.server
 # terminal 2 — Tier 2 (resolution API, port 8010)
-ALGUARD_DEV_MODE=1 ALGUARD_DEV_USER=UNVERIFIED_DEV_AGENT python -m web_api.resolve_action
+ALGUARD_DEV_MODE=1 ALGUARD_DEV_USER=UNVERIFIED_DEV_AGENT python3 -m web_api.resolve_action
+# terminal 3 — demo client (pick one)
+python3 demo/golden_path.py          # full end-to-end demo
+# python3 demo/simulate_session.py   # step-by-step scenario
+# python3 demo/agent_demo.py         # poisoned-page demo
+# terminal 4 — browser UI backend (loopback, port 8020)
+python3 -m web_api.demo_server
+```
+
+**Windows (PowerShell):**
+
+```powershell
+.venv\Scripts\activate
+
+# terminal 1 — Tier 1 (MCP server, port 8000)
+$env:ALGUARD_DEV_MODE="1"; python -m mcp_server.server
+# terminal 2 — Tier 2 (resolution API, port 8010)
+$env:ALGUARD_DEV_MODE="1"; $env:ALGUARD_DEV_USER="UNVERIFIED_DEV_AGENT"; python -m web_api.resolve_action
 # terminal 3 — demo client
 python demo/golden_path.py
+# terminal 4 — browser UI backend (loopback, port 8020)
+python -m web_api.demo_server
 ```
 
 Real Alexa+ onboarding: `alexa-ai configure` → tunnel port 8000 → fill the `REPLACE_ME`
@@ -144,8 +179,8 @@ changes the OK/MONITOR/HALTED decision, only the wording. Env: `AWS_REGION`,
 mcp_server/          Tier 1 MCP server + risk engine
   server.py          attempt_purchase / get_session_status / get_audit_trail
   utils/             scoring, circuit breaker, receipts, auth, Tier2Store
-web_api/             Tier 2 human-approval service
-demo/                golden_path, simulate_session, agent_demo
+web_api/             Tier 2 human-approval service + demo_server (UI backend)
+demo/                golden_path, simulate_session, agent_demo (demo clients)
 tests/               61 pytest tests
 addon-package/       addon.json (Alexa+ add-on manifest)
 data/                SQLite schema + receipts ledger
