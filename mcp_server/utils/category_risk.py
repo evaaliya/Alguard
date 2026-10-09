@@ -1,14 +1,11 @@
 """
-The agent-declared `category` is UNTRUSTED input (a prompt-injected agent can say
-"other" for a crypto purchase). The server therefore derives its own view:
+Heuristic text-based category inference. NOT ground truth: the authoritative
+source of category is the MCC (Merchant Category Code) of the payment rail.
+These rules exist to catch obvious evasions from a prompt-injected agent.
+False positives are possible; severity floor + unknown-merchant rule provide
+a second layer of defense.
 
-  1. infer_category_from_text(): keyword rules over item + merchant text;
-  2. a merchant that is neither on the trusted list nor already trusted from this
-     user's own history gets a Medium severity FLOOR (unknown != Low);
-  3. effective severity = max(declared, inferred, floor).
-
-This is a heuristic, not a ground truth. The real fix is MCC / merchant data from the
-payment rail -- see "what's still not solved" in the README.
+See "What is still NOT solved" in README.
 """
 import os
 import re
@@ -41,12 +38,47 @@ TRUSTED_MERCHANTS = (
     if os.environ.get("ALGUARD_TRUSTED_MERCHANTS") else _DEFAULT_TRUSTED
 )
 
+# Heuristic keyword rules over item + merchant text. NOT ground truth — the
+# authoritative source of category is the MCC of the payment rail (see
+# "What is still NOT solved" in README). These rules exist to catch the
+# obvious evasions a prompt-injected agent would try.
+#
+# Design principles:
+#   * `crypto` must not fire on the word "cryptography".
+#   * `slots` must not fire on "time slot".
+#   * `voucher` alone is a generic discount word — only fires with
+#     gift/prepaid/cash/store/credit context.
+#   * Gift-card evasions (steam wallet, itunes card, top-up, reload, ...)
+#     are explicitly enumerated because they are the highest-severity case.
 _TEXT_RULES = [
-    (re.compile(r"gift[\s_\-]*card|giftcard|prepaid[\s_\-]*card|\bvoucher", re.I), "gift_card"),
-    (re.compile(r"crypto|bitcoin|\bbtc\b|ethereum|\beth\b|\busdt\b|binance|coinbase|\bnft\b", re.I), "crypto"),
-    (re.compile(r"casino|poker|lotter|sportsbook|gambl|\bbet(s|ting)?\b|slots?\b", re.I), "gambling"),
-    (re.compile(r"wire[\s_\-]*transfer|western[\s_\-]*union|moneygram|remittance|\biban\b", re.I), "wire_transfer"),
-    (re.compile(r"\bloan\b|payday|cash[\s_\-]*advance", re.I), "loan"),
+    (re.compile(
+        r"gift[\s_\-]*card|giftcard|prepaid[\s_\-]*card|"
+        r"\bgift\b|"                                    # bare "gift" (e.g. "Apple gift")
+        r"\bvoucher\b(?=[^.]*\b(gift|prepaid|cash|store|credit|code|card)\b)|"
+        r"\b(steam|google[\s_\-]*play|itunes|app[\s_\-]*store|roblox|xbox|"
+        r"playstation|nintendo[\s_\-]*eshop|amazon)\b[^.]*\b(card|code|wallet|credit)\b|"
+        r"wallet[\s_\-]*code|\btop[\s_\-]*up\b|"
+        r"\breload\b|store[\s_\-]*credit",
+        re.I
+    ), "gift_card"),
+    (re.compile(
+        r"\bcrypto(currenc(y|ies))?\b|\bbitcoin\b|\bbtc\b|\bethereum\b|\beth\b|"
+        r"\busdt\b|\bbinance\b|\bcoinbase\b|\bnft\b",
+        re.I
+    ), "crypto"),
+    (re.compile(
+        r"casino|poker|lotter|sportsbook|gambl|"
+        r"\bbet(s|ting)?\b|\bslot\s+machines?\b|\bslots\b",
+        re.I
+    ), "gambling"),
+    (re.compile(
+        r"wire[\s_\-]*transfer|western[\s_\-]*union|moneygram|remittance|\biban\b",
+        re.I
+    ), "wire_transfer"),
+    (re.compile(
+        r"\bloan\b|payday|cash[\s_\-]*advance",
+        re.I
+    ), "loan"),
 ]
 
 
