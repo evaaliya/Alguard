@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS actions (
     status          TEXT NOT NULL,   -- OK | MONITOR | HALTED
     reason          TEXT,            -- internal; never returned to the agent
     expires_at      TEXT,            -- HALTED only: approval must happen before this
+    halt_cause      TEXT,            -- 'rule' | 'circuit' | NULL (default: rule)
     resolution      TEXT,            -- APPROVED | DENIED | NULL
     resolved_at     TEXT,
     resolved_by     TEXT

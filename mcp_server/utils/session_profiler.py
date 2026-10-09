@@ -16,6 +16,7 @@ from statistics import mean, pstdev
 from typing import Any, Dict, List, Optional
 
 from mcp_server.utils.risk_evaluator import ABSOLUTE_AMOUNT_LIMIT, UNKNOWN_MERCHANT_CAP
+from mcp_server.utils.circuit_breaker import CIRCUIT_WINDOW_HOURS
 
 NEW_MERCHANT_FLAG = "new_merchant"
 AMOUNT_SPIKE_FLAG = "amount_spike"
@@ -65,8 +66,20 @@ def profile_purchase_attempt(
 
     # Only HUMAN-APPROVED merchants count as "known" for trust purposes.
     known = approved_merchants
-    burned = {h["merchant"] for h in history
-              if h.get("status") == "HALTED" and h.get("resolution") != "APPROVED"} - approved_merchants
+    cutoff_burn = now - timedelta(hours=CIRCUIT_WINDOW_HOURS)
+    def _is_recent(h):
+        try:
+            return datetime.fromisoformat(h["created_at"]) >= cutoff_burn
+        except Exception:
+            return False
+    burned = {
+        h["merchant"] for h in history
+        if h.get("merchant")
+        and h.get("status") == "HALTED"
+        and h.get("resolution") != "APPROVED"
+        and h.get("halt_cause") != "circuit"
+        and _is_recent(h)
+    } - approved_merchants
 
     if merchant in burned:
         flags.append(RETRY_AFTER_HALT_FLAG)

@@ -37,6 +37,12 @@ def build_purchase_decision(
         now=now,
     )
 
+    # Classify the halt by cause so a circuit-halt does not burn a merchant.
+    if status == "HALTED":
+        halt_cause = "circuit" if reason.startswith("circuit open") else "rule"
+    else:
+        halt_cause = None
+
     return {
         "action_id": new_id("act"),
         "session_id": session_id,
@@ -52,6 +58,7 @@ def build_purchase_decision(
         "anomaly_details": profile["details"],
         "status": status,
         "reason": reason,
+        "halt_cause": halt_cause,
         "expires_at": iso(now + timedelta(minutes=APPROVAL_TTL_MINUTES)) if status == "HALTED" else None,
         "resolution": None,
         "resolved_at": None,

@@ -26,8 +26,17 @@ def ensure_schema() -> None:
     conn = get_connection()
     with open(SCHEMA_PATH, "r", encoding="utf-8") as f:
         conn.executescript(f.read())
+    _migrate_schema(conn)
     conn.commit()
     conn.close()
+
+
+def _migrate_schema(conn) -> None:
+    """Add new columns to existing DBs without requiring a rebuild."""
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(actions);").fetchall()}
+    if "halt_cause" not in existing:
+        conn.execute("ALTER TABLE actions ADD COLUMN halt_cause TEXT;")
+
 
 
 def new_id(prefix: str) -> str:
@@ -139,10 +148,10 @@ def insert_action(record: Dict[str, Any]) -> None:
         conn.execute(
             """INSERT INTO actions
                (action_id, session_id, agent_id, item, category, merchant, amount, created_at,
-                risk_score, category_severity, anomaly_flags, status, reason, expires_at,
+                risk_score, category_severity, anomaly_flags, status, reason, halt_cause, expires_at,
                 resolution, resolved_at, resolved_by)
                VALUES (:action_id, :session_id, :agent_id, :item, :category, :merchant, :amount, :created_at,
-                       :risk_score, :category_severity, :anomaly_flags, :status, :reason, :expires_at,
+                       :risk_score, :category_severity, :anomaly_flags, :status, :reason, :halt_cause, :expires_at,
                        :resolution, :resolved_at, :resolved_by);""",
             record,
         )
