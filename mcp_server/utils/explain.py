@@ -36,7 +36,7 @@ def customer_message(decision: Dict[str, Any], duplicate: bool = False) -> str:
                 f"in the Alexa app (reference {decision['action_id']}). "
                 f"It cannot be approved through the assistant.")
     # OK and MONITOR land here:
-    return f"{what} has been recorded."
+    return f"{what} has been recorded (simulated, no real charge)."
 
 
 def internal_explanation(decision: Dict[str, Any]) -> str:

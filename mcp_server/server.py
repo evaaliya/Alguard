@@ -139,6 +139,7 @@ def _agent_view(a: Dict[str, Any]) -> Dict[str, Any]:
         "merchant": a["merchant"], "amount": a["amount"], "created_at": a["created_at"],
         "awaiting_customer_approval": a["status"] == "HALTED" and a.get("resolution") is None,
         "resolution": a.get("resolution"),
+        "fulfillment": a.get("fulfillment"),   # NULL | COMPLETED_SIMULATED | FAILED
     }
 
 
