@@ -51,12 +51,15 @@ TRUSTED_MERCHANTS = (
 #   * Gift-card evasions (steam wallet, itunes card, top-up, reload, ...)
 #     are explicitly enumerated because they are the highest-severity case.
 _TEXT_RULES = [
+    # Require gift-card *intent* — bare "gift" / "gift bag" must NOT match.
+    # Platform + card/code/wallet still catches common evasions.
     (re.compile(
         r"gift[\s_\-]*card|giftcard|prepaid[\s_\-]*card|"
-        r"\bgift\b|"                                    # bare "gift" (e.g. "Apple gift")
+        r"\bapple\s+gift(\s+card)?\b|"
         r"\bvoucher\b(?=[^.]*\b(gift|prepaid|cash|store|credit|code|card)\b)|"
         r"\b(steam|google[\s_\-]*play|itunes|app[\s_\-]*store|roblox|xbox|"
-        r"playstation|nintendo[\s_\-]*eshop|amazon)\b[^.]*\b(card|code|wallet|credit)\b|"
+        r"playstation|nintendo[\s_\-]*eshop)\b[^.]*\b(card|code|wallet|credit|gift)\b|"
+        r"\bamazon\b[^.]*\b(gift[\s_\-]*card|giftcard|wallet[\s_\-]*code)\b|"
         r"wallet[\s_\-]*code|\btop[\s_\-]*up\b|"
         r"\breload\b|store[\s_\-]*credit",
         re.I

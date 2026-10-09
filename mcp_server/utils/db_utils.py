@@ -3,13 +3,19 @@ Thin sqlite helpers. Every read is scoped to an owner (verified end-user subject
 there is no function here that returns another user's rows. Resolution is a single
 atomic UPDATE (no check-then-act race).
 """
+import os
 import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-DB_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "actions_log.db"
+# Override with ALGUARD_DB_PATH to relocate the Tier 1 actions ledger (e.g. a
+# mounted volume). Tier 2 does not write this path directly -- it goes through
+# mcp_server/utils/tier2_store.py, the narrow write-only surface.
+DB_PATH = Path(os.environ.get("ALGUARD_DB_PATH") or (
+    Path(__file__).resolve().parent.parent.parent / "data" / "actions_log.db"
+))
 SCHEMA_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "schema.sql"
 
 

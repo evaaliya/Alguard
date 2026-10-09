@@ -18,4 +18,3 @@ python-dotenv>=1.0
 # Bedrock integration for customer-facing explanations (optional; non-critical
 # path — bedrock_explain.py falls back to a deterministic template).
 boto3>=1.34
-pytest>=8.0

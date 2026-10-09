@@ -13,11 +13,14 @@ def load_app(monkeypatch, tmp_path, dev_user):
         monkeypatch.delenv(k, raising=False)
     if dev_user:
         monkeypatch.setenv("ALGUARD_DEV_USER", dev_user)
+        monkeypatch.setenv("ALGUARD_DEV_MODE", "1")
     else:
         monkeypatch.delenv("ALGUARD_DEV_USER", raising=False)
+        monkeypatch.delenv("ALGUARD_DEV_MODE", raising=False)
         # Belt-and-suspenders: load_dotenv() in resolve_action.py must NOT
         # resurrect ALGUARD_DEV_USER from a local .env during tests.
         monkeypatch.setenv("ALGUARD_DEV_USER", "")   # empty string == not set in our code
+        monkeypatch.setenv("ALGUARD_DEV_MODE", "")
     import web_api.resolve_action as ra
     importlib.reload(ra)
     return TestClient(ra.app)

@@ -1,11 +1,22 @@
 # Alguard — an Alexa+ Purchase Guard
 
-An Alexa+ agent-trust layer for autonomous purchases. The risk architecture here is
-ported from [Albugent](https://github.com/evaaliya/albugent_v2.0), a data-governance
-engine we built previously that scores datasets for risk and halts anything above a
-threshold pending human review -- categories and datasets became purchase attempts
-and sessions, but the core rule carried over unchanged, built strictly on Amazon's
-own MCP Toolkit for Alexa+ (developer.amazon.com/docs/alexaplus/add-ons/):
+**Primary track: Alexa+.** Self-hosted MCP add-on (Streamable HTTP, MCP spec
+2025-11-25+). Customer-facing HALT explanations are generated with **Amazon
+Bedrock** (`converse` API) for the AWS Builder mini-challenge.
+
+**What it is (honest claim):** an **agent-side risk halt** for purchases exposed
+through this add-on. It scores every `attempt_purchase`, auto-completes everyday
+buys, and pauses high-risk ones until the human approves on a **separate**
+channel. It does **not** sit on Amazon’s payment rail yet — Checkout /
+`ChargePermissionId` is the next integration. Until then, fulfillment is marked
+`simulated` in receipts.
+
+The risk architecture is ported from
+[Albugent](https://github.com/evaaliya/albugent_v2.0), a data-governance engine
+that scores datasets for risk and halts anything above a threshold pending human
+review — categories and datasets became purchase attempts and sessions, but the
+core rule carried over unchanged, built strictly on Amazon's own MCP Toolkit for
+Alexa+ (developer.amazon.com/docs/alexaplus/add-ons/):
 
 > **The system that requests a risky action is never the system that approves it.**
 
@@ -160,16 +171,18 @@ line, not a solid one, because there is no direct network path there -- only an
 
 ```bash
 pip install -r requirements.txt
+pip install -r requirements-dev.txt    # pytest + test-only deps
 pytest -q                              # decision pipeline, no transport involved
 ```
 
 ### Real MCP transport, generic client (before you have simulator access)
 
 ```bash
+# Both tiers FAIL CLOSED without OAuth. Set ALGUARD_DEV_MODE=1 for local dev.
 # terminal 1
-python -m mcp_server.server        # Tier 1, Streamable HTTP, port 8000
+ALGUARD_DEV_MODE=1 python -m mcp_server.server        # Tier 1, Streamable HTTP, port 8000
 # terminal 2
-python -m web_api.resolve_action   # Tier 2, port 8010
+ALGUARD_DEV_MODE=1 ALGUARD_DEV_USER=UNVERIFIED_DEV_AGENT python -m web_api.resolve_action  # Tier 2, port 8010
 # terminal 3
 python demo/simulate_session.py
 ```
@@ -192,25 +205,24 @@ alexa-ai deploy                    # registers the add-on, dev stage
 `mcp_server/utils/bedrock_explain.py` calls Amazon Bedrock via the
 `converse` API to turn the risk engine's internal vocabulary
 (`risk_score >= threshold, severity=High, flags=[retry_after_halt]`) into a
-calm sentence a customer will actually read.
+calm sentence a customer will actually read. Every HALTED response in the
+Golden Path (`demo/golden_path.py` Step 2) surfaces that Bedrock-generated
+message back through the MCP tool result.
 
 **Non-critical path by design:** the decision is already made when Bedrock
-is called. A Bedrock failure degrades gracefully to the deterministic
-template in `explain.py`; it never changes the decision.
+is called. Bedrock never changes OK / MONITOR / HALTED — only the wording.
 
 **Env vars:**
 - `AWS_REGION` (e.g. `us-east-1`)
 - `ALGUARD_BEDROCK_MODEL_ID` (e.g. `amazon.nova-lite-v1:0`)
 
-**IAM:** needs `bedrock:InvokeModel` on the model ARN.
+**IAM:** needs `bedrock:InvokeModel` / `bedrock:InvokeModelWithResponseStream`
+on the model ARN.
 
-**Status:** implemented. On our test AWS account Bedrock returned
-`ValidationException: Operation not allowed` for every model
-(Anthropic, DeepSeek, Nova) regardless of IAM policy or Model access state —
-an account-level authorization hold, not a code issue (see `FRICTION_LOG.md`
-#2). The Bedrock call site is live in `bedrock_explain.py`; the deterministic
-fallback in `explain.py` is what runs in the demo (see `demo/golden_path.py`
-Step 2).
+**Status:** working in the product path. HALTED customer copy is produced by
+Bedrock on every halt. Account-access friction for fresh AWS accounts is
+documented for organizers in `FEEDBACK.md` and `docs/friction_log.md` #2 —
+it does not block the demo or the Golden Path.
 
 ## What's intentionally NOT built yet
 
@@ -220,8 +232,9 @@ Step 2).
   `OAUTH_AUDIENCE` at any real authorization server (Auth0, Cognito, Okta...) and it
   validates real tokens. What's still missing is *running* that authorization
   server and registering Alexa's redirect URIs with it -- see "Enable real OAuth"
-  below. Without those env vars set, the server runs with no auth at all (fine for
-  local dev, not for certification). Also note: the MCP SDK adds a `WWW-Authenticate`
+  below. Without those env vars set, the server FAILS CLOSED -- it refuses to start
+  unless you explicitly set ALGUARD_DEV_MODE=1 for local dev. Also note: the MCP SDK
+  adds a `WWW-Authenticate`
   header to 401 responses, which the Alexa+ Authentication checklist currently lists
   as "Not Supported Yet" on their side -- flagged in a code comment, not fixed, since
   it can't be tested against real Alexa+ without Private Preview access.
@@ -244,7 +257,7 @@ python -m mcp_server.server
 
 `demo/simulate_session.py` doesn't send a Bearer token, so with auth enabled it will
 get rejected -- that's the point (proves the auth actually rejects unauthenticated
-callers). Leave the env vars unset to keep using the demo script as before.
+callers). Without auth, start the server with ALGUARD_DEV_MODE=1 (local dev only).
 
 ## View a delivered receipt
 
@@ -269,19 +282,32 @@ end user -- not to `session_id`, not to the Alexa `client_id`.
 High-severity category, retrying a merchant that was halted and never approved within the
 last 24h, and any purchase above `ALGUARD_UNKNOWN_MERCHANT_CAP` (default $250) at a merchant
 this user has not explicitly approved before.
+**Cold start:** a small purchase at an unknown merchant is **MONITOR** (flagged, still
+completes) — not an instant HALT. HALT for unknowns only kicks in over the cap, or via
+High category / other hard rules. That keeps everyday shopping usable while still
+catching gift cards, wires, and large first-time charges.
 **Merchant trust** comes only from a human APPROVED resolution — not from a static allowlist.
 A merchant that was never approved is treated as unknown, even if the agent uses a familiar
 name (`amazon`, `amazon_basics`, ...).
 **Circuit breaker:** while a user has an unresolved or denied HALT (24h), any non-Low purchase
 is HALTED; approval by the human closes it.
+**Auth:** both tiers FAIL CLOSED. Without `OAUTH_*`, Tier 1 refuses to start and Tier 2
+returns 503 unless you explicitly set `ALGUARD_DEV_MODE=1` (local dev only) — there is no
+silent unauthenticated mode. With OAuth configured, identity is the verified JWT `sub`.
+Tier 2 uses a **separate** audience + `approve` scope so an agent-channel token can never
+approve. Demos print `AUTH: OFF/ON` at startup so the video makes the mode obvious.
 **Tier 2:** fails closed; Bearer JWT with its own audience + `approve` scope; approvals are owner-
-bound, expire (30 min), and are a single atomic conditional UPDATE.
+bound, expire (30 min), and are a single atomic conditional UPDATE. Tier 2 reads through a
+read-only `Tier2Store` (`mcp_server/utils/tier2_store.py`) and its only write is that atomic
+resolution — it has no access to Tier 1's insert/reset/trust write helpers.
 
 **What is still NOT solved (be honest about it):**
 - This server is not in the payment path. Alexa+ can buy without calling it. It becomes a real
   gate only when it issues the charge permission itself (Checkout / wallet integration).
 - Category truth should come from MCC/merchant data of the payment rail, not text heuristics.
 - Nothing is charged; receipts are marked `simulated`.
-- Tier 1 and Tier 2 share a SQLite file. Split the DB (or put Tier 2 behind its own service
-  with a write-only API) before production.
+- Tier 1 and Tier 2 still share a SQLite file. Tier 2's access is already narrowed to a
+  read-only store with a single write (`mcp_server/utils/tier2_store.py`), but the final
+  production step is to move Tier 2 into its own process with a write-only HTTP API (and
+  relocate the ledger via `ALGUARD_DB_PATH`).
 

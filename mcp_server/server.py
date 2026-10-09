@@ -63,6 +63,8 @@ ensure_schema()
 # env vars are set. Without them this runs with no auth at all -- fine for local
 # dev against demo/simulate_session.py, not acceptable for certification.
 _token_verifier = build_token_verifier_from_env()
+_DEV_MODE = os.environ.get("ALGUARD_DEV_MODE", "").strip().lower() in ("1", "true", "yes")
+
 if _token_verifier is not None:
     mcp = FastMCP(
         "Alguard",
@@ -76,10 +78,17 @@ if _token_verifier is not None:
         ),
     )
     logger.info("OAuth resource-server auth ENABLED (issuer=%s)", os.environ["OAUTH_ISSUER_URL"])
-else:
+elif _DEV_MODE:
     mcp = FastMCP("Alguard")
-    logger.warning("OAuth NOT configured (OAUTH_JWKS_URL/OAUTH_ISSUER_URL/OAUTH_AUDIENCE unset) -- "
-                   "running with NO auth. Fine for local dev, not for certification.")
+    logger.warning("ALGUARD_DEV_MODE=1 -- running with NO auth. Local development only, never for certification.")
+else:
+    # Fail closed: never silently start an unauthenticated purchase-halt endpoint.
+    raise SystemExit(
+        "Alguard refuses to start without authentication. "
+        "Set OAUTH_JWKS_URL, OAUTH_ISSUER_URL and OAUTH_AUDIENCE to enable OAuth 2.1 "
+        "resource-server auth, or set ALGUARD_DEV_MODE=1 to explicitly run "
+        "unauthenticated for local development only."
+    )
 
 # Declared as a Literal so it's an enum in the tool's JSON Schema, per Functional
 # Requirements #13: "Include common synonyms... in your tool parameter descriptions

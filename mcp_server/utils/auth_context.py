@@ -48,7 +48,6 @@ from mcp.server.auth.provider import AccessToken, TokenVerifier
 
 
 _DEV_PLACEHOLDER = "UNVERIFIED_DEV_AGENT"
-logging.getLogger("Alguard.auth")
 
 class JWTBearerTokenVerifier(TokenVerifier):
     """

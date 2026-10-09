@@ -16,7 +16,7 @@ from typing import Any, Dict, List
 
 from mcp_server.utils.category_risk import (
     classify_category_severity, detect_risky_category, infer_category_from_text,
-    max_severity, SEVERITY_ORDER,
+    max_severity, SEVERITY_ORDER, UNKNOWN_MERCHANT_CAP,
 )
 
 SEVERITY_WEIGHT = {"High": 0.45, "Medium": 0.25, "Low": 0.1}
@@ -27,7 +27,6 @@ HIGH_RISK_THRESHOLD = 0.65
 ABSOLUTE_AMOUNT_LIMIT = 1000.0
 HOURLY_LIMIT = 1500.0
 DAILY_LIMIT = 3000.0
-UNKNOWN_MERCHANT_CAP = 250.0  # Hard cap for purchases at unknown merchants
 
 
 def evaluate_purchase_risk(

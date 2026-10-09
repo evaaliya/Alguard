@@ -1,0 +1,5 @@
+# Development/test dependencies only.
+# Install with:  pip install -r requirements-dev.txt
+# pytest is deliberately NOT in requirements.txt (runtime deps only).
+
+pytest>=8.0

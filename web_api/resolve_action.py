@@ -14,10 +14,9 @@ from typing import Dict, List, Optional
 from fastapi import FastAPI, Header, HTTPException
 
 from mcp_server.utils.auth_context import build_tier2_verifier_from_env
-from mcp_server.utils.db_utils import ensure_schema, get_pending_for_owner
+from mcp_server.utils.db_utils import ensure_schema
 from mcp_server.utils.explain import internal_explanation
-from mcp_server.utils.receipts import get_receipt
-from web_api.apply_resolution import resolve_pending_action
+from mcp_server.utils.tier2_store import Tier2Store
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -26,9 +25,13 @@ ensure_schema()
 app = FastAPI(title="Alguard Tier 2 Resolution Service")
 
 _verifier = build_tier2_verifier_from_env()
-_DEV_USER = None if _verifier else (os.environ.get("ALGUARD_DEV_USER") or None)
+_DEV_MODE = os.environ.get("ALGUARD_DEV_MODE", "").strip().lower() in ("1", "true", "yes")
+# Dev identity is only honored when explicitly opted in (ALGUARD_DEV_MODE=1); otherwise
+# Tier 2 stays fail-closed (503) even if ALGUARD_DEV_USER happens to be set.
+_DEV_USER = None if _verifier else (os.environ.get("ALGUARD_DEV_USER") if _DEV_MODE else None)
+_store = Tier2Store()
 if _verifier is None:
-    logger.warning("Tier 2 OAuth NOT configured; dev user = %r. Not for production.", _DEV_USER)
+    logger.warning("Tier 2 OAuth NOT configured; dev user = %r (dev mode = %s). Not for production.", _DEV_USER, _DEV_MODE)
 
 
 async def current_user(authorization: Optional[str] = Header(None)) -> str:
@@ -51,7 +54,7 @@ from fastapi import Depends  # noqa: E402
 async def pending(user: str = Depends(current_user)) -> Dict:
     """The user's own open approvals -- this is how the app learns action_ids."""
     items: List[Dict] = []
-    for a in get_pending_for_owner(user):
+    for a in _store.pending(user):
         items.append({
             "action_id": a["action_id"],
             "expires_at": a["expires_at"],
@@ -65,7 +68,7 @@ async def pending(user: str = Depends(current_user)) -> Dict:
 
 @app.post("/resolve/{action_id}")
 async def resolve(action_id: str, approved: bool, user: str = Depends(current_user)) -> Dict:
-    result = resolve_pending_action(action_id, approved, user)
+    result = _store.resolve(action_id, approved, user)
     if "error" in result:
         code = 404 if result["error"] == "action not found" else 409
         raise HTTPException(code, result["error"])
@@ -74,7 +77,7 @@ async def resolve(action_id: str, approved: bool, user: str = Depends(current_us
 
 @app.get("/receipts/{action_id}")
 async def receipt(action_id: str, user: str = Depends(current_user)) -> Dict:
-    entry = get_receipt(action_id, owner=user)
+    entry = _store.receipt(action_id, user)
     if not entry:
         raise HTTPException(404, "receipt not found")
     return entry
