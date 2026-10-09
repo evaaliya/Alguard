@@ -11,8 +11,13 @@ def load_app(monkeypatch, tmp_path, dev_user):
     monkeypatch.setattr(db_utils, "DB_PATH", tmp_path / "t.db")
     for k in ("OAUTH_JWKS_URL", "OAUTH_ISSUER_URL", "OAUTH_TIER2_AUDIENCE"):
         monkeypatch.delenv(k, raising=False)
-    if dev_user: monkeypatch.setenv("ALGUARD_DEV_USER", dev_user)
-    else: monkeypatch.delenv("ALGUARD_DEV_USER", raising=False)
+    if dev_user:
+        monkeypatch.setenv("ALGUARD_DEV_USER", dev_user)
+    else:
+        monkeypatch.delenv("ALGUARD_DEV_USER", raising=False)
+        # Belt-and-suspenders: load_dotenv() in resolve_action.py must NOT
+        # resurrect ALGUARD_DEV_USER from a local .env during tests.
+        monkeypatch.setenv("ALGUARD_DEV_USER", "")   # empty string == not set in our code
     import web_api.resolve_action as ra
     importlib.reload(ra)
     return TestClient(ra.app)

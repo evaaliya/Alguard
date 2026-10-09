@@ -26,7 +26,7 @@ ensure_schema()
 app = FastAPI(title="Alguard Tier 2 Resolution Service")
 
 _verifier = build_tier2_verifier_from_env()
-_DEV_USER = None if _verifier else os.environ.get("ALGUARD_DEV_USER")
+_DEV_USER = None if _verifier else (os.environ.get("ALGUARD_DEV_USER") or None)
 if _verifier is None:
     logger.warning("Tier 2 OAuth NOT configured; dev user = %r. Not for production.", _DEV_USER)
 
@@ -39,7 +39,7 @@ async def current_user(authorization: Optional[str] = Header(None)) -> str:
         if tok is None:
             raise HTTPException(401, "invalid token", headers={"WWW-Authenticate": "Bearer"})
         return tok.client_id  # = `sub`
-    if _DEV_USER:
+    if _DEV_USER is not None:
         return _DEV_USER
     raise HTTPException(503, "Tier 2 authentication is not configured")
 

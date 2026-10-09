@@ -27,11 +27,15 @@ CATEGORY_SEVERITY = {
     "subscription": "Low", "electronics": "Low", "groceries": "Low", "dining": "Low",
     "entertainment": "Low", "travel": "Low", "other": "Low",
 }
+UNKNOWN_MERCHANT_CAP = float(os.environ.get("ALGUARD_UNKNOWN_MERCHANT_CAP", "250"))
 SEVERITY_ORDER = {"Low": 0, "Medium": 1, "High": 2}
 HIGH_RISK_CATEGORIES = tuple(c for c, s in CATEGORY_SEVERITY.items() if s == "High")
 
 # Merchants you vouch for. Override with ALGUARD_TRUSTED_MERCHANTS="a,b,c".
 _DEFAULT_TRUSTED = {"amazon", "amazon_basics", "whole_foods", "audible", "prime_video"}
+# Merchant trust is decided per-user from human APPROVED resolutions in
+# risk_evaluator / session_profiler, NOT from a static allowlist. The list
+# below is kept only as UI/documentation hint; it does not lower severity.
 TRUSTED_MERCHANTS = (
     {m.strip().lower() for m in os.environ["ALGUARD_TRUSTED_MERCHANTS"].split(",") if m.strip()}
     if os.environ.get("ALGUARD_TRUSTED_MERCHANTS") else _DEFAULT_TRUSTED

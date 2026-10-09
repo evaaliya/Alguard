@@ -8,6 +8,7 @@ trust, history or clever scoring can talk around (each forces HALTED):
   - effective severity High (gift_card, wire_transfer, gambling, crypto, loan) -- this is
     exactly what addon.json promises the customer
   - retry_after_halt: same merchant was already halted and never approved by the human
+  - unknown_merchant_over_cap: purchase at unknown merchant above UNKNOWN_MERCHANT_CAP
 Severity is computed by the SERVER (declared category + text inference + unknown-merchant
 floor), not taken from the agent's word.
 """
@@ -26,6 +27,7 @@ HIGH_RISK_THRESHOLD = 0.65
 ABSOLUTE_AMOUNT_LIMIT = 1000.0
 HOURLY_LIMIT = 1500.0
 DAILY_LIMIT = 3000.0
+UNKNOWN_MERCHANT_CAP = 250.0  # Hard cap for purchases at unknown merchants
 
 
 def evaluate_purchase_risk(
@@ -47,6 +49,8 @@ def evaluate_purchase_risk(
     inferred = classify_category_severity(inferred_cat) if inferred_cat else "Low"
     if inferred_cat and SEVERITY_ORDER[inferred] > SEVERITY_ORDER[declared] and "category_mismatch" not in flags:
         flags.append("category_mismatch")  # the agent under-declared
+    # Unknown merchants default to Medium severity floor — but "known" now means
+    # "human APPROVED this merchant for this user", not a static allowlist.
     severity = max_severity(declared, inferred, "Low" if merchant_trusted else "Medium")
 
     anomaly_score = min(len(flags) * ANOMALY_WEIGHT, ANOMALY_CAP)
@@ -65,6 +69,8 @@ def evaluate_purchase_risk(
         hard.append("high_risk_category")
     if "retry_after_halt" in flags:
         hard.append("retry_after_halt")
+    if "unknown_merchant_over_cap" in flags:
+        hard.append("unknown_merchant_over_cap")
     if hard:
         total_risk = max(total_risk, HIGH_RISK_THRESHOLD)  # keeps HALTED <=> score >= threshold
 

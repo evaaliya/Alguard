@@ -15,14 +15,14 @@ from datetime import datetime, timedelta, timezone
 from statistics import mean, pstdev
 from typing import Any, Dict, List, Optional
 
-from mcp_server.utils.category_risk import TRUSTED_MERCHANTS
-from mcp_server.utils.risk_evaluator import ABSOLUTE_AMOUNT_LIMIT
+from mcp_server.utils.risk_evaluator import ABSOLUTE_AMOUNT_LIMIT, UNKNOWN_MERCHANT_CAP
 
 NEW_MERCHANT_FLAG = "new_merchant"
 AMOUNT_SPIKE_FLAG = "amount_spike"
 FREQUENCY_SPIKE_FLAG = "frequency_spike"
 AMOUNT_OVER_LIMIT_FLAG = "amount_over_limit"
 RETRY_AFTER_HALT_FLAG = "retry_after_halt"
+UNKNOWN_MERCHANT_OVER_CAP_FLAG = "unknown_merchant_over_cap"
 
 MIN_HISTORY_FOR_AMOUNT_CHECK = 3
 AMOUNT_ZSCORE_THRESHOLD = 2.0
@@ -47,7 +47,15 @@ def profile_purchase_attempt(
     now: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     now = now or datetime.now(timezone.utc)
-    trusted = [h for h in history if _real(h)]
+    # Trusted merchants = those this user has had a HUMAN-APPROVED action with.
+    # OK/MONITOR purchases alone do NOT grant trust (otherwise one cheap buy
+    # launders a merchant).
+    approved_merchants = {
+        h["merchant"] for h in history
+        if h.get("merchant") and h.get("resolution") == "APPROVED"
+    }
+    # Still useful for amount-baseline stats (real money movement), but not for trust.
+    real = [h for h in history if _real(h)]
     flags: List[str] = []
     details: Dict[str, Any] = {}
 
@@ -55,19 +63,26 @@ def profile_purchase_attempt(
         flags.append(AMOUNT_OVER_LIMIT_FLAG)
         details[AMOUNT_OVER_LIMIT_FLAG] = {"amount": amount, "limit": ABSOLUTE_AMOUNT_LIMIT}
 
-    known = {h["merchant"] for h in trusted if h.get("merchant")}
-    approved = {h["merchant"] for h in history if h.get("resolution") == "APPROVED"}
+    # Only HUMAN-APPROVED merchants count as "known" for trust purposes.
+    known = approved_merchants
     burned = {h["merchant"] for h in history
-              if h.get("status") == "HALTED" and h.get("resolution") != "APPROVED"} - approved
+              if h.get("status") == "HALTED" and h.get("resolution") != "APPROVED"} - approved_merchants
 
     if merchant in burned:
         flags.append(RETRY_AFTER_HALT_FLAG)
         details[RETRY_AFTER_HALT_FLAG] = {"merchant": merchant}
-    elif history and merchant not in known and merchant not in TRUSTED_MERCHANTS:
+
+    if merchant not in known:
+        # Cold start: even with empty history, an unknown merchant is flagged.
         flags.append(NEW_MERCHANT_FLAG)
         details[NEW_MERCHANT_FLAG] = {"merchant": merchant, "known_merchants_count": len(known)}
 
-    amounts = [h["amount"] for h in trusted if h.get("category") == category and h.get("amount") is not None]
+    # Hard rule: unknown merchant over cap
+    if merchant not in known and amount is not None and amount > UNKNOWN_MERCHANT_CAP:
+        flags.append(UNKNOWN_MERCHANT_OVER_CAP_FLAG)
+        details[UNKNOWN_MERCHANT_OVER_CAP_FLAG] = {"merchant": merchant, "cap": UNKNOWN_MERCHANT_CAP}
+
+    amounts = [h["amount"] for h in real if h.get("category") == category and h.get("amount") is not None]
     if len(amounts) >= MIN_HISTORY_FOR_AMOUNT_CHECK:
         m = mean(amounts)
         sd = max(pstdev(amounts), 0.25 * m, 1.0)
@@ -86,5 +101,5 @@ def profile_purchase_attempt(
         "prior_actions_count": len(history),
         "flags": flags,
         "details": details,
-        "merchant_trusted": merchant in TRUSTED_MERCHANTS or merchant in known,
+        "merchant_trusted": merchant in known,
     }
