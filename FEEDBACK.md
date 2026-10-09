@@ -156,3 +156,89 @@ would catch the exact class of bug the Alexa+ Design Guide warns about.
   Tier 2 share `actions_log.db`. The `resolve_action_atomic` UPDATE is
   correct across processes, but the deployment shape should be "Tier 2
   behind a write-only API", not "two processes, one file".
+
+  ---
+
+## A blocking issue that cost us the AWS Builder mini-challenge
+
+I want to be direct, because the developer experience on this point was
+not recoverable within the hackathon window, and because everything below
+is measurable rather than emotional.
+
+**Timeline.**
+1. I registered a fresh AWS account for this hackathon. Bedrock's "Model
+   access" page was retired mid-build; per AWS docs, all serverless
+   foundation models should be available immediately on commercial accounts.
+2. Every Bedrock `converse` call — across Anthropic, DeepSeek, and Amazon
+   Nova — returned `ValidationException: Operation not allowed`. The error
+   text is indistinguishable from a malformed request. It took two days of
+   digging to learn it was an account-level authorization hold, not a code
+   bug, not an IAM problem, and not a region problem.
+3. To lift the hold, I was asked to submit personal identity documents —
+   passport and a bank statement. I initially declined on principle: none
+   of my other cloud accounts require this for a free-tier evaluation.
+4. I submitted them anyway, on the understanding that it would unblock the
+   account.
+5. The account was rejected **again**, and **blocked**, without a specific
+   reason beyond the same identity-verification wall.
+
+**Why this is a problem, not just for me.**
+- The Bedrock integration in this repository is finished, tested against a
+  mock, and ready to run. It cannot run — not because the code is wrong,
+  but because the account is gated by a KYC process the public docs never
+  mention.
+- A hackathon is a low-stakes, time-boxed evaluation. Requiring government
+  ID and bank records before a developer can make a single inference call
+  is a barrier the target audience — students, indie developers, hobbyists
+  — will hit and cannot clear in 48 hours.
+- If the gate exists, it must be named in the console and in the docs
+  before any attempt to call the API. A distinct error code (for example,
+  `AccountNotAuthorizedForBedrock`) and a console banner would have saved
+  the entire effort described above.
+
+**This is not a hackathon problem. It is a go-to-market problem.**
+
+For contrast, on the same day:
+
+- Creating a Cloudflare account and making a Workers AI call: **4 minutes,
+  no identity documents, first call succeeded on the first try.**
+- Creating an OpenAI account and making a first chat completion: **under
+  5 minutes, a card on file, no KYC wall.**
+- AWS Bedrock: **two days, a passport scan, a bank statement, one
+  submission, one rejection, one account block.**
+
+The difference is not the model quality or the API surface — Bedrock's
+`converse` is clean and the MCP integration is straightforward once it
+runs. The difference is that AWS has inserted a compliance step before the
+first request that competing platforms do not require at all for a
+free-tier evaluation. A developer evaluating Bedrock against Vertex AI or
+Workers AI will reach the working call on the competitor first, every
+time, and will not come back to find out whether Bedrock was worth the
+detour.
+
+**If the AWS Builder mini-challenge is open to hackathon participants, it
+must be openable by them.** Right now the mini-challenge is advertised to a
+population — students, indie builders — that cannot realistically complete
+the gate the mini-challenge requires. Either lift the KYC requirement for
+hackathon-window accounts, or remove the mini-challenge from the track
+list. Both are honest answers. The current state — promising access,
+gating it silently, and blocking the account once the gate is attempted —
+is the one option that only damages the platform's reputation with the
+exact developers it is trying to attract.
+
+**Consequence.**
+
+I will not use AWS for the next project. I have already started
+evaluating alternatives — Google's Vertex AI, Cloudflare Workers AI, and
+direct provider APIs (OpenAI, Anthropic, DeepSeek) — all of which let a
+developer make a first call in minutes, on an account created the same
+day, without identity documents. I was a paying-customer profile: I was
+ready to spend credits, integrate Bedrock, and ship. I am leaving before I
+spend anything, because the onboarding cost exceeded the value I expected
+to get, and I have no confidence the next account attempt will not hit the
+same wall.
+
+**What would have kept me.** One paragraph at the top of the Bedrock docs:
+"Some accounts require additional verification before the first call. If
+`converse` returns `Operation not allowed`, check Billing → Account
+Verification." That is the entire ask.
