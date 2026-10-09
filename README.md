@@ -306,8 +306,12 @@ resolution — it has no access to Tier 1's insert/reset/trust write helpers.
   gate only when it issues the charge permission itself (Checkout / wallet integration).
 - Category truth should come from MCC/merchant data of the payment rail, not text heuristics.
 - Nothing is charged; receipts are marked `simulated`.
-- Tier 1 and Tier 2 still share a SQLite file. Tier 2's access is already narrowed to a
-  read-only store with a single write (`mcp_server/utils/tier2_store.py`), but the final
-  production step is to move Tier 2 into its own process with a write-only HTTP API (and
-  relocate the ledger via `ALGUARD_DB_PATH`).
+- Tier 1 and Tier 2 still share a SQLite file. **Already done (safe MVP level):** Tier 2 has
+  no arbitrary DB access — `mcp_server/utils/tier2_store.py` gives it only read-only reads
+  plus exactly one atomic `resolve`, so the "write-only API" is effectively implemented
+  in-process. **What remains is a full 3-service refactor before production:** (1) move the
+  DB owner into its own process, (2) rewrite Tier 1 (MCP server) to call that process over
+  HTTP instead of writing via `process_attempt` directly, (3) rewrite the demos and all
+  tests. That touches Tier 1's hot path, the demo scripts and all 61 tests, so it is
+  deliberately left out of the MVP to avoid destabilising the working end-to-end path.
 
