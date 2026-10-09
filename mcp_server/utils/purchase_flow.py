@@ -58,5 +58,7 @@ def process_attempt(
         insert_action(record)
 
     if decision["status"] in ("OK", "MONITOR"):
+        from mcp_server.utils.fulfillment import fulfill
+        fulfill(decision["action_id"], decision["amount"])
         send_purchase_receipt(decision)
     return decision, False

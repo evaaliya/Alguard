@@ -24,8 +24,10 @@ def resolve_pending_action(action_id: str, approved: bool, user_id: str) -> Dict
     bump_agent_trust(user_id, approved)   # only after the atomic win -> no double bump
 
     if approved:
-        # TODO(checkout): execute the real charge HERE (ChargePermissionId / wallet API),
-        # never from the agent channel. Until then the receipt is explicitly simulated.
+        # Fulfillment on the simulated rail. The real Checkout call goes inside
+        # the PaymentRail implementation, never from the agent channel.
+        from mcp_server.utils.fulfillment import fulfill
+        fulfill(action_id, action["amount"])
         send_purchase_receipt({**action, "status": "APPROVED_BY_USER"})
 
     return {"action_id": action_id, "resolution": resolution}

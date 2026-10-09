@@ -34,8 +34,12 @@ def ensure_schema() -> None:
 def _migrate_schema(conn) -> None:
     """Add new columns to existing DBs without requiring a rebuild."""
     existing = {row[1] for row in conn.execute("PRAGMA table_info(actions);").fetchall()}
-    if "halt_cause" not in existing:
-        conn.execute("ALTER TABLE actions ADD COLUMN halt_cause TEXT;")
+    for col, decl in (
+        ("halt_cause", "TEXT"),
+        ("fulfillment", "TEXT"),
+    ):
+        if col not in existing:
+            conn.execute(f"ALTER TABLE actions ADD COLUMN {col} {decl};")
 
 
 

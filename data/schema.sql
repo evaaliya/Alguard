@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS actions (
     reason          TEXT,            -- internal; never returned to the agent
     expires_at      TEXT,            -- HALTED only: approval must happen before this
     halt_cause      TEXT,            -- 'rule' | 'circuit' | NULL (default: rule)
+    fulfillment     TEXT,            -- NULL | 'COMPLETED_SIMULATED' | 'FAILED'
     resolution      TEXT,            -- APPROVED | DENIED | NULL
     resolved_at     TEXT,
     resolved_by     TEXT
