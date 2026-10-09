@@ -12,9 +12,16 @@ from typing import Any, Dict
 # explain.py
 def customer_message(decision: Dict[str, Any], duplicate: bool = False) -> str:
     what = f"'{decision.get('item')}' (${decision.get('amount'):,.2f})"
-    if duplicate:
+
+    # A duplicate of a HALTED action must return the SAME approval-pending
+    # message as the original: the customer must see "needs your approval",
+    # not "already processed" (which reads as "everything is done").
+    # Duplicate only changes the message for OK/MONITOR, where the outcome
+    # really was already recorded.
+    if duplicate and decision["status"] != "HALTED":
         return (f"This exact request for {what} was already processed a moment ago, "
                 f"so it was not repeated.")
+
     if decision["status"] == "HALTED":
         # Try Bedrock first (AWS Builder mini-challenge). Fall back to the
         # deterministic template -- Bedrock is never on the critical path.
