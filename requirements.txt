@@ -1,20 +1,22 @@
 # Runtime dependencies only. Dev/test deps: requirements-dev.txt.
+# Versions are pinned to the exact set the project was last tested against.
+# See requirements.lock for the full transitive closure.
 
-# MCP SDK. Pinned <2.0.0: 2.0.0 renamed FastMCP -> MCPServer and
+# MCP SDK. <2.0.0 required: 2.0.0 renamed FastMCP -> MCPServer and
 # streamablehttp_client -> streamable_http_client with no compatibility shim.
 # Streamable HTTP + spec 2025-11-25+ is the Alexa+ MCP Toolkit requirement.
-mcp[cli]>=1.10,<2.0.0
+mcp[cli]==1.30.0
 
-fastapi>=0.115
-uvicorn>=0.30
-httpx>=0.27
+fastapi==0.142.2
+uvicorn==0.54.0
+httpx==0.28.1
 
 # OAuth 2.1 resource-server token verification (auth_context.py).
-pyjwt[crypto]>=2.7.0
+pyjwt[crypto]==2.15.1
 
 # .env loader.
-python-dotenv>=1.0
+python-dotenv==1.2.4
 
 # Bedrock integration for customer-facing explanations (optional; non-critical
 # path — bedrock_explain.py falls back to a deterministic template).
-boto3>=1.34
+boto3==1.43.109

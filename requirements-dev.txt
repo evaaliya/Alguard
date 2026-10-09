@@ -2,4 +2,4 @@
 # Install with:  pip install -r requirements-dev.txt
 # pytest is deliberately NOT in requirements.txt (runtime deps only).
 
-pytest>=8.0
+pytest==9.1.1
