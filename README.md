@@ -37,8 +37,7 @@ Built against the Alexa+ MCP QuickStart Guide and Design Guide.
 ![Alguard architecture](demo/architecture.svg)
 
 
-The dashed arrow from `Blocked` to the human channel is deliberate: there is no direct
-network path there — only an `action_id` the customer carries to a separate service.
+The dashed arrows are deliberate. HALTED → Alexa app: no network path — only an action_id the customer carries to a separate service. Ledger API → actions_log.db: Tier 2 never opens the SQLite file; it goes through the token-gated HTTP ledger API, which exposes read-only reads and one atomic resolve.
 
 ## Run
 
