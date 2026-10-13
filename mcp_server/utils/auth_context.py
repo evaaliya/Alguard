@@ -58,13 +58,21 @@ class JWTBearerTokenVerifier(TokenVerifier):
     AuthSettings in server.py.
     """
 
-    def __init__(self, jwks_url: str, issuer: str, audience: str, required_scopes: Optional[List[str]] = None):
+    def __init__(
+        self,
+        jwks_url: str,
+        issuer: str,
+        audience: str,
+        required_scopes: Optional[List[str]] = None,
+        allowed_clients: Optional[List[str]] = None,
+    ):
         # PyJWKClient caches fetched keys in memory and re-fetches on an unknown kid,
         # so this doesn't hit the network on every single request.
         self._jwk_client = PyJWKClient(jwks_url)
         self._issuer = issuer
         self._audience = audience
         self._required_scopes = required_scopes or []
+        self._allowed_clients = [c for c in (allowed_clients or []) if c]
 
     async def verify_token(self, token: str) -> Optional[AccessToken]:
         # NOTE: get_signing_key_from_jwt is a blocking (sync) network call the first
@@ -96,6 +104,12 @@ class JWTBearerTokenVerifier(TokenVerifier):
             logger.warning("Token has no `sub` claim to identify the end user")
             return None
 
+        if self._allowed_clients:
+            authorized_party = claims.get("azp") or claims.get("client_id")
+            if authorized_party not in self._allowed_clients:
+                logger.warning("Token authorized party %r is not in the allowed-client allowlist", authorized_party)
+                return None
+
         return AccessToken(token=token, client_id=str(client_id), scopes=list(scopes))
 
 
@@ -111,7 +125,8 @@ def build_token_verifier_from_env() -> Optional[JWTBearerTokenVerifier]:
     if not (jwks_url and issuer and audience):
         return None
     required_scopes = [s for s in os.environ.get("OAUTH_REQUIRED_SCOPES", "").split() if s]
-    return JWTBearerTokenVerifier(jwks_url, issuer, audience, required_scopes)
+    allowed_clients = [c for c in os.environ.get("OAUTH_ALLOWED_CLIENTS", "").replace(",", " ").split() if c]
+    return JWTBearerTokenVerifier(jwks_url, issuer, audience, required_scopes, allowed_clients)
 
 
 def build_tier2_verifier_from_env() -> Optional[JWTBearerTokenVerifier]:
@@ -126,7 +141,8 @@ def build_tier2_verifier_from_env() -> Optional[JWTBearerTokenVerifier]:
     if not (jwks_url and issuer and audience):
         return None
     scopes = os.environ.get("OAUTH_TIER2_SCOPES", "approve").split()
-    return JWTBearerTokenVerifier(jwks_url, issuer, audience, scopes)
+    allowed_clients = [c for c in os.environ.get("OAUTH_ALLOWED_CLIENTS", "").replace(",", " ").split() if c]
+    return JWTBearerTokenVerifier(jwks_url, issuer, audience, scopes, allowed_clients)
 
 
 def resolve_agent_identity() -> str:

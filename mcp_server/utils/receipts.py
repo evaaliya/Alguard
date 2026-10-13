@@ -36,8 +36,27 @@ logger = logging.getLogger("Alguard.receipts")
 RECEIPTS_LEDGER_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "receipts_ledger.jsonl"
 
 
+def _ledger_contains(action_id: Optional[str]) -> bool:
+    """True if the receipts ledger already holds a line for this action (idempotency guard)."""
+    if not action_id or not RECEIPTS_LEDGER_PATH.exists():
+        return False
+    with open(RECEIPTS_LEDGER_PATH, "r", encoding="utf-8") as f:
+        for line in f:
+            try:
+                if json.loads(line).get("action_id") == action_id:
+                    return True
+            except json.JSONDecodeError:
+                continue
+    return False
+
+
 def _append_to_ledger(decision: Dict[str, Any]) -> None:
-    """The always-on channel -- a durable receipt record, no config needed."""
+    """The always-on channel -- a durable receipt record, no config needed.
+
+    Idempotent: a crash/retry that re-runs receipt delivery must not create a
+    duplicate line for the same action_id."""
+    if _ledger_contains(decision.get("action_id")):
+        return
     RECEIPTS_LEDGER_PATH.parent.mkdir(parents=True, exist_ok=True)
     entry = {
         "action_id": decision.get("action_id"),

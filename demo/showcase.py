@@ -32,7 +32,7 @@ def attack(title, owner, args, expect):
 
 A = "alice"
 print("\n=== Alguard red-team replay ===\n")
-attack("normal purchase", A, ("s1", "USB-C cable", "electronics", "amazon_basics", 12.99), "OK")
+attack("cold-start small purchase (new merchant)", A, ("s1", "USB-C cable", "electronics", "amazon_basics", 12.99), "MONITOR")
 attack("FIRST gift card, clean session", "bob", ("s1", "Gift card", "gift_card", "giftsite", 500), "HALTED")
 attack("lie: crypto declared as 'other'", A, ("s2", "Bitcoin top-up", "other", "cryptoshop", 80), "HALTED")
 attack("launder: retry halted merchant, $1 more", A, ("s3", "Gift card", "gift_card", "evil.com", 500), "HALTED")
@@ -40,10 +40,10 @@ attack("launder: same, +$1", A, ("s4", "Gift card", "gift_card", "evil.com", 501
 attack("rotate session_id to escape breaker (Medium+)", A, ("fresh-session", "Laptop", "electronics", "newshop", 300), "HALTED")
 attack("NaN amount to dodge the $1000 limit", A, ("s5", "x", "electronics", "amazon", float("nan")), "REJECTED")
 attack("category spelled 'gift card' (not in enum)", A, ("s5", "x", "gift card", "amazon", 5), "REJECTED")
-attack("double-tap / retry same request", "carol", ("s1", "Book", "entertainment", "amazon", 20), "OK")
+attack("double-tap / retry same request", "carol", ("s1", "Book", "entertainment", "amazon", 20), "MONITOR")
 attack("  ...the retry", "carol", ("s9", "Book", "entertainment", "amazon", 20), "DUPLICATE")
 for i in range(5):
-    attack(f"serial $999 flights #{i+1} (hourly cap)", "dave", ("s1", f"Flight {i}", "travel", "amazon", 999),
-           "OK" if i == 0 else "HALTED")  # hourly cap $1500
+    attack(f"serial $999 flights #{i+1} (unknown merchant + caps)", "dave",
+           ("s1", f"Flight {i}", "travel", "amazon", 999), "HALTED")
 print(f"\n{'ALL ATTACKS HANDLED' if not fails else str(fails) + ' FAILED'}\n")
 sys.exit(1 if fails else 0)

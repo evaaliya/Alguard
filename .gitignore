@@ -7,7 +7,11 @@ data/*.db
 data/*.db-wal
 data/*.db-shm
 data/receipts_ledger.jsonl
+data/audit_log.jsonl
 .env.bak
 .env.*.bak
 *.bak
 .DS_Store
+HACKATHON.md
+SUBMISSION.md
+JURY_QA.md

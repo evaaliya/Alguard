@@ -4,7 +4,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 
 from mcp_server.utils.db_utils import (
-    get_agent_trust, get_owner_actions, new_id, spend_since,
+    get_agent_trust, get_owner_actions, new_id, spend_since, list_trusted_merchants,
+    list_banned_merchants,
 )
 from mcp_server.utils.session_profiler import profile_purchase_attempt
 from mcp_server.utils.risk_evaluator import evaluate_purchase_risk
@@ -20,7 +21,13 @@ def build_purchase_decision(
     iso = lambda d: d.isoformat(timespec="microseconds")
 
     history = get_owner_actions(owner)
-    profile = profile_purchase_attempt(history, item, category, merchant, amount, now)
+    user_trusted = set(list_trusted_merchants(owner))
+    user_banned = set(list_banned_merchants(owner))
+    profile = profile_purchase_attempt(
+        history, item, category, merchant, amount, now,
+        user_trusted_merchants=user_trusted,
+        user_banned_merchants=user_banned,
+    )
 
     risk = evaluate_purchase_risk(
         category=category, amount=amount, anomaly_flags=profile["flags"],

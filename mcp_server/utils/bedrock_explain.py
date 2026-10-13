@@ -15,6 +15,7 @@ logger = logging.getLogger("Alguard.bedrock")
 
 try:
     import boto3
+    from botocore.config import Config
     from botocore.exceptions import BotoCoreError, ClientError
     _BOTO_AVAILABLE = True
 except ImportError:
@@ -30,6 +31,12 @@ def _local_explanation(decision: Dict[str, Any]) -> str:
     flags = decision.get("anomaly_flags") or []
     if isinstance(flags, str):
         flags = []
+
+    if "banned_merchant" in flags or "banned" in reason:
+        return (
+            f"We can't place this order at {merchant} — this store is on your blocked list. "
+            f"Remove it in the Alexa app if you want to allow it."
+        )
 
     if "retry_after_halt" in flags or "retry_after_halt" in reason:
         return (
@@ -79,6 +86,7 @@ def _converse_live(decision: Dict[str, Any], model_id: str) -> Optional[str]:
         client = boto3.client(
             "bedrock-runtime",
             region_name=os.environ.get("AWS_REGION", "us-east-1"),
+            config=Config(read_timeout=5, connect_timeout=5, retries={"max_attempts": 1}),
         )
         response = client.converse(
             modelId=model_id,
@@ -94,19 +102,24 @@ def _converse_live(decision: Dict[str, Any], model_id: str) -> Optional[str]:
 
 
 def generate_customer_explanation(decision: Dict[str, Any]) -> Tuple[str, str]:
-    """Returns (message, source). Always returns customer-ready Bedrock copy."""
+    """Returns (message, source). `source` is "bedrock-converse" ONLY when Bedrock
+    actually produced the text; otherwise "local-fallback". Never mislabels a
+    locally-composed sentence as Bedrock output."""
     model_id = os.environ.get("ALGUARD_BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0")
     force_local = os.environ.get("ALGUARD_BEDROCK_FORCE_SIM", "").lower() in ("1", "true", "yes")
 
-    if not force_local:
+    if _BOTO_AVAILABLE and not force_local:
         live = _converse_live(decision, model_id)
         if live:
             logger.info("Bedrock explanation ready (converse model=%s)", model_id)
             return live, "bedrock-converse"
 
     text = _local_explanation(decision)
-    logger.info("Bedrock explanation ready (model=%s)", model_id)
-    return text, "bedrock-converse"
+    logger.info(
+        "Using deterministic local explanation (Bedrock %s)",
+        "forced" if force_local else "unavailable",
+    )
+    return text, "local-fallback"
 
 
 def generate_customer_explanation_text(decision: Dict[str, Any]) -> str:

@@ -17,7 +17,7 @@ from typing import Any, Dict, Tuple
 
 from mcp_server.utils.category_risk import CATEGORY_VALUES
 from mcp_server.utils.context_builder import build_purchase_decision
-from mcp_server.utils.db_utils import find_recent_duplicate, insert_action
+from mcp_server.utils.db_utils import expire_stale_halts, find_recent_duplicate, insert_action_if_not_duplicate
 from mcp_server.utils.receipts import send_purchase_receipt
 
 DUP_WINDOW_MINUTES = 10
@@ -47,6 +47,8 @@ def process_attempt(
     item, merchant, amount = validate_attempt(item, category, merchant, amount)
     since = (datetime.now(timezone.utc) - timedelta(minutes=DUP_WINDOW_MINUTES)).isoformat(timespec="microseconds")
 
+    expire_stale_halts()  # roll up any halts whose approval window has already closed
+
     with _LOCK:
         dup = find_recent_duplicate(owner, item, merchant, amount, since)
         if dup:
@@ -55,7 +57,11 @@ def process_attempt(
         record = dict(decision)
         record["anomaly_flags"] = json.dumps(decision["anomaly_flags"])
         record.pop("anomaly_details", None)
-        insert_action(record)
+        # Cross-process dedup: check + insert in one BEGIN IMMEDIATE transaction, so two
+        # concurrent identical attempts across processes resolve to exactly one row.
+        cross_dup = insert_action_if_not_duplicate(record, owner, item, merchant, amount, since)
+        if cross_dup is not None:
+            return cross_dup, True
 
     if decision["status"] in ("OK", "MONITOR"):
         from mcp_server.utils.fulfillment import fulfill

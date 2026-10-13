@@ -70,6 +70,8 @@ def evaluate_purchase_risk(
         hard.append("retry_after_halt")
     if "unknown_merchant_over_cap" in flags:
         hard.append("unknown_merchant_over_cap")
+    if "banned_merchant" in flags:
+        hard.append("banned_merchant")
     if hard:
         total_risk = max(total_risk, HIGH_RISK_THRESHOLD)  # keeps HALTED <=> score >= threshold
 

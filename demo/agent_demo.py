@@ -22,6 +22,8 @@ import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import httpx
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
@@ -89,8 +91,8 @@ async def main():
             print(f"  {DIM}poisoned page loaded ({len(poisoned)} bytes){RESET}")
             r2 = await call_tool(session, "attempt_purchase", {
                 "session_id": SESSION_ID,
-                "item": "Steam wallet code", "category": "other",
-                "merchant": "steam-deals-now", "amount": 500.0,
+                "item": "Game-store wallet code", "category": "other",
+                "merchant": "game-deals-now", "amount": 500.0,
             })
             print(f"  {RED}{r2['status']}{RESET}  {r2['message']}")
             action_id = r2["action_id"]

@@ -34,58 +34,79 @@ Built against the Alexa+ MCP QuickStart Guide and Design Guide.
 
 ## Architecture
 
+![Alguard architecture](demo/architecture.svg)
+
 ```mermaid
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'primaryColor': '#ffffff',
+    'primaryBorderColor': '#cdddef',
+    'primaryTextColor': '#122436',
+    'lineColor': '#8ea3ba',
+    'fontSize': '14px',
+    'clusterBkg': '#f4f8ff',
+    'clusterBorder': '#d6e2f2'
+  },
+  'flowchart': { 'curve': 'step', 'nodeSpacing': 40, 'rankSpacing': 50, 'padding': 16 }
+}}%%
 flowchart TB
-    Customer["Customer<br/>(voice or text)"]
+    Customer["<b>Customer</b><br/>voice or text"]
+    Bedrock["<b>Amazon Bedrock</b><br/>writes the customer explanation<br/>deterministic fallback"]
 
-    subgraph Tier1["TIER 1 — Agent channel (Alexa+ MCP server, port 8000)"]
-        direction TB
-        AlexaPlus["Alexa+<br/>MCP client"]
-        Tools["Tools exposed:<br/>attempt_purchase<br/>get_session_status<br/>get_audit_trail<br/><br/>(no approve/deny tool exists here)"]
-        RiskEngine["Risk engine<br/>category severity + anomalies<br/>+ agent trust score"]
-        CircuitBreaker["Owner circuit breaker<br/>(an open halt blocks later<br/>non-Low purchases for that user)"]
-        Decision{{"Decision"}}
-        DB[("actions_log.db<br/>SQLite (owned by Tier 1)")]
+    subgraph T1["TIER 1 — Agent channel · Alexa+ MCP server · port 8000"]
+        Alexa["<b>Alexa+</b><br/>MCP client"]
+        Tools["<b>MCP tools</b><br/>attempt_purchase<br/>get_session_status<br/>get_audit_trail<br/><i>no approve / deny tool</i>"]
+        Risk["<b>Risk engine</b><br/>category severity<br/>+ anomalies + trust score"]
+        Breaker["<b>Owner circuit breaker</b><br/>an open halt blocks later<br/>non-Low purchases"]
+        Decision{{"<b>Decision</b>"}}
+        OK["<b>OK</b><br/>Purchase completes"]
+        MON["<b>MONITOR</b><br/>Purchase completes,<br/>flagged for review"]
+        HALT["<b>HALTED</b><br/>Purchase NOT completed<br/>action_id returned"]
+        DB[("<b>actions_log.db</b><br/>SQLite · owned by Tier 1")]
     end
 
-    subgraph Tier2["TIER 2 — Human channel (separate service, port 8010)"]
-        direction TB
-        HumanApp["Alexa app / account-linked<br/>identity (human only)"]
-        Tier2Store["Tier2Store<br/>read-only reads + one<br/>atomic resolve (no direct DB writes)"]
-        Resolve["resolve_pending_action<br/>APPROVE / DENY"]
-        Receipts[("Receipts ledger<br/>+ email")]
+    subgraph T2["TIER 2 — Human channel · separate service · port 8010"]
+        Human["<b>Alexa app</b><br/>account-linked identity<br/>(human only)"]
+        Store["<b>Tier2Store</b><br/>HTTP client<br/>no direct DB access"]
+        Ledger["<b>Internal ledger API</b><br/>port 8015<br/>Tier 2's only route"]
+        Resolve["<b>resolve_pending_action</b><br/>APPROVE / DENY"]
+        Receipts[("<b>Receipts ledger</b><br/>+ email")]
+        Dropped["<b>Purchase</b><br/>stays blocked"]
     end
 
-    Customer -->|"buy / book / subscribe"| AlexaPlus
-    AlexaPlus --> Tools
-    Tools --> RiskEngine
-    RiskEngine --> CircuitBreaker
-    CircuitBreaker --> Decision
+    Customer -->|"buy / book / subscribe"| Alexa
+    Alexa --> Tools --> Risk --> Breaker --> Decision
+    Bedrock -.->|"explains every result"| Decision
     Decision --> DB
+    Decision --> OK
+    Decision --> MON
+    Decision --> HALT
 
-    Decision -->|"OK"| Complete1["Purchase completes"]
-    Decision -->|"MONITOR"| Complete2["Purchase completes,<br/>flagged for review"]
-    Decision -->|"HALTED"| Blocked["Purchase NOT completed<br/>action_id returned"]
-
-    Complete1 --> Receipts
-    Complete2 --> Receipts
-
-    Blocked -.->|"action_id<br/>(no network path back to Tier 1)"| HumanApp
-    HumanApp --> Tier2Store
-    Tier2Store --> Resolve
-    Tier2Store -.->|"read-only reads + single atomic write"| DB
+    OK --> Receipts
+    MON --> Receipts
+    HALT -.->|"action_id · no network path back"| Human
+    Human --> Store --> Resolve
+    Store -.->|"HTTP"| Ledger
+    Ledger -.->|"read-only reads + one atomic resolve"| DB
     Resolve -->|"APPROVED"| Receipts
-    Resolve -->|"DENIED"| Dropped["Purchase stays blocked"]
+    Resolve -->|"DENIED"| Dropped
 
-    style Tier1 fill:#10131f,stroke:#1e2436,color:#e7ecf3
-    style Tier2 fill:#0f1930,stroke:#1e2436,color:#e7ecf3
-    style Decision fill:#e0a93e,stroke:#e0a93e,color:#141414
-    style Blocked fill:#d9534f,stroke:#d9534f,color:#fff
-    style Complete1 fill:#46a578,stroke:#46a578,color:#fff
-    style Complete2 fill:#e0a93e,stroke:#e0a93e,color:#141414
-    style Resolve fill:#121b2e,stroke:#1e2436,color:#e7ecf3
-    style DB fill:#1b2437,stroke:#3b82f6,color:#e7ecf3
-    style Tier2Store fill:#121b2e,stroke:#1e2436,color:#e7ecf3
+    classDef def fill:#ffffff,stroke:#cdddef,color:#122436
+    classDef ok fill:#e4f5ee,stroke:#46a578,color:#17563a
+    classDef warn fill:#fdf3dc,stroke:#e0a93e,color:#5c4400
+    classDef bad fill:#fdeceb,stroke:#e06b67,color:#8c2f2b
+    classDef info fill:#eef3fb,stroke:#5b7bd6,color:#24345f
+    classDef purple fill:#eeeafa,stroke:#7B5CFA,color:#3a2a6e
+
+    class Customer,Alexa,Tools,Risk,Breaker,Human def
+    class Decision,MON warn
+    class OK ok
+    class HALT,Dropped bad
+    class DB,Store,Ledger,Resolve,Receipts info
+    class Bedrock purple
+
+    linkStyle 9,12 stroke:#e06b67,stroke-width:2px
 ```
 
 The dashed arrow from `Blocked` to the human channel is deliberate: there is no direct
@@ -110,7 +131,7 @@ pip install -r requirements.txt        # runtime deps (pinned)
 pip install -r requirements-dev.txt    # pytest + test-only deps
 
 # 4. Run the tests
-pytest -q                              # 61 tests, no MCP transport needed
+pytest -q                              # 72 tests, no MCP transport needed
 ```
 
 **macOS / Linux:**
@@ -120,14 +141,16 @@ source .venv/bin/activate
 
 # terminal 1 — Tier 1 (MCP server, port 8000)
 ALGUARD_DEV_MODE=1 python3 -m mcp_server.server
-# terminal 2 — Tier 2 (resolution API, port 8010)
+# terminal 2 — internal ledger API (port 8015) — Tier 2 calls this over HTTP
+python3 -m web_api.ledger_api
+# terminal 3 — Tier 2 (resolution API, port 8010)
 ALGUARD_DEV_MODE=1 ALGUARD_DEV_USER=UNVERIFIED_DEV_AGENT python3 -m web_api.resolve_action
-# terminal 3 — demo client (pick one)
+# terminal 4 — demo client (pick one)
 python3 demo/golden_path.py          # full end-to-end demo
-# python3 demo/simulate_session.py   # step-by-step scenario
 # python3 demo/agent_demo.py         # poisoned-page demo
-# terminal 4 — browser UI backend (loopback, port 8020)
-python3 -m web_api.demo_server
+# python3 demo/agent_demo.py         # poisoned-page demo
+# terminal 5 — browser UI backend (loopback, port 8020; requires ALGUARD_DEMO_UI=1)
+ALGUARD_DEMO_UI=1 python3 -m web_api.demo_server
 ```
 
 **Windows (PowerShell):**
@@ -137,12 +160,14 @@ python3 -m web_api.demo_server
 
 # terminal 1 — Tier 1 (MCP server, port 8000)
 $env:ALGUARD_DEV_MODE="1"; python -m mcp_server.server
-# terminal 2 — Tier 2 (resolution API, port 8010)
+# terminal 2 — internal ledger API (port 8015)
+python -m web_api.ledger_api
+# terminal 3 — Tier 2 (resolution API, port 8010)
 $env:ALGUARD_DEV_MODE="1"; $env:ALGUARD_DEV_USER="UNVERIFIED_DEV_AGENT"; python -m web_api.resolve_action
-# terminal 3 — demo client
+# terminal 4 — demo client
 python demo/golden_path.py
-# terminal 4 — browser UI backend (loopback, port 8020)
-python -m web_api.demo_server
+# terminal 5 — browser UI backend (loopback, port 8020; requires ALGUARD_DEMO_UI=1)
+$env:ALGUARD_DEMO_UI="1"; python -m web_api.demo_server
 ```
 
 Real Alexa+ onboarding: `alexa-ai configure` → tunnel port 8000 → fill the `REPLACE_ME`
@@ -151,9 +176,12 @@ URLs in `addon-package/addon.json` → `alexa-ai deploy` → test in the Web Sim
 ## Bedrock (HALT explanations)
 
 `mcp_server/utils/bedrock_explain.py` turns the risk engine's internal vocabulary into a
-calm customer-facing sentence via the Bedrock `converse` API. Non-critical path: it never
-changes the OK/MONITOR/HALTED decision, only the wording. Env: `AWS_REGION`,
-`ALGUARD_BEDROCK_MODEL_ID`. IAM: `bedrock:InvokeModel`.
+calm customer-facing sentence via the Bedrock `converse` API — the primary path, integrated
+and ready to run. It is deliberately non-critical: a Bedrock call never changes the
+OK/MONITOR/HALTED decision, only the wording. For resilience, if Bedrock is momentarily
+unreachable it falls back to a deterministic local sentence (labeled `local-fallback`), so
+the customer always gets an explanation and the decision path never depends on an external
+call. Env: `AWS_REGION`, `ALGUARD_BEDROCK_MODEL_ID`. IAM: `bedrock:InvokeModel`.
 
 ## Not built yet
 
@@ -172,6 +200,11 @@ changes the OK/MONITOR/HALTED decision, only the wording. Env: `AWS_REGION`,
 | `AWS_REGION`, `ALGUARD_BEDROCK_MODEL_ID` | Bedrock HALT explanations |
 | `ALGUARD_DB_PATH` | Relocate the actions ledger |
 | `ALGUARD_UNKNOWN_MERCHANT_CAP` | Unknown-merchant cap (default $250) |
+| `ALGUARD_LEDGER_API_TOKEN` | Shared secret guarding the internal ledger API (port 8015) |
+| `ALGUARD_DEMO_UI=1` | Opt in to run the loopback-only demo UI backend (port 8020) |
+| `ALGUARD_RATE_LIMIT_PER_MIN` | Per-owner attempt_purchase throttle (default 120, 0 disables) |
+| `ALGUARD_RETENTION_DAYS` | Prune terminal actions older than N days (0 = keep forever) |
+| `OAUTH_ALLOWED_CLIENTS` | Optional `azp`/`client_id` allowlist for bearer tokens |
 
 ## Project structure
 
@@ -180,8 +213,8 @@ mcp_server/          Tier 1 MCP server + risk engine
   server.py          attempt_purchase / get_session_status / get_audit_trail
   utils/             scoring, circuit breaker, receipts, auth, Tier2Store
 web_api/             Tier 2 human-approval service + demo_server (UI backend)
-demo/                golden_path, simulate_session, agent_demo (demo clients)
-tests/               61 pytest tests
+demo/                golden_path, agent_demo, showcase (demo clients)
+tests/               72 pytest tests
 addon-package/       addon.json (Alexa+ add-on manifest)
 data/                SQLite schema + receipts ledger
 ```
@@ -205,6 +238,23 @@ Alguard treats every value supplied by the calling agent as untrusted input.
   returns 503, unless `ALGUARD_DEV_MODE=1`.
 - **Tier 2** — own audience + `approve` scope; approvals owner-bound, expire in 30 min,
   single atomic UPDATE; reads via read-only `Tier2Store` (`mcp_server/utils/tier2_store.py`).
+- **Atomic dedup** — the duplicate check + insert run in one `BEGIN IMMEDIATE` transaction
+  (`insert_action_if_not_duplicate`), so two concurrent identical attempts across processes
+  resolve to a single row (the in-process lock is only a fast path, not the guarantee).
+- **Serialized trust updates** — `bump_agent_trust` runs under `BEGIN IMMEDIATE`, closing the
+  read-modify-write race on trust scores across concurrent resolutions.
+- **Crash consistency** — `reconcile_unfulfilled()` heals the window between resolve and
+  fulfill: any APPROVED (or OK/MONITOR) action whose fulfillment is still NULL is fulfilled
+  and receipted exactly once on startup. The receipts ledger dedupes by `action_id`.
+- **Token-gated ledger API** — Tier 2's route to the ledger (port 8015) is loopback-bound and,
+  when `ALGUARD_LEDGER_API_TOKEN` is set, requires that shared secret on every route.
+- **Demo UI fails closed** — the demo backend (port 8020) refuses to start unless
+  `ALGUARD_DEMO_UI=1`; it is loopback-only and never the production approval path.
+- **Rate limit** — per-owner throttle on `attempt_purchase` (`ALGUARD_RATE_LIMIT_PER_MIN`,
+  default 120/min) bounds a hostile agent's ability to flood the risk engine.
+- **Client allowlist (optional)** — `OAUTH_ALLOWED_CLIENTS` restricts tokens by `azp`/`client_id`.
+- **Retention** — `maintenance()` expires stale halts, prunes terminal actions past
+  `ALGUARD_RETENTION_DAYS`, and checkpoints the WAL to bound ledger growth.
 
 ## Known limitations
 
@@ -214,5 +264,6 @@ Alguard treats every value supplied by the calling agent as untrusted input.
   payment rail.
 - **Nothing is charged** — fulfillment is `simulated`.
 - **Shared SQLite file** — Tier 1 and Tier 2 still share one file. Tier 2 access is
-  already narrowed (read-only reads + one atomic `resolve` via `Tier2Store`); a full
-  3-service split is future work.
+  narrowed (read-only reads + one atomic `resolve` via `Tier2Store`, now token-gated on the
+  ledger API). A full 3-service split (Tier 2 writing to a dedicated approvals store that
+  Tier 1 reads) remains future work.

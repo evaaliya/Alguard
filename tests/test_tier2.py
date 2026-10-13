@@ -21,8 +21,14 @@ def load_app(monkeypatch, tmp_path, dev_user):
         # resurrect ALGUARD_DEV_USER from a local .env during tests.
         monkeypatch.setenv("ALGUARD_DEV_USER", "")   # empty string == not set in our code
         monkeypatch.setenv("ALGUARD_DEV_MODE", "")
+    import httpx
+    import web_api.ledger_api as ledger
     import web_api.resolve_action as ra
+    importlib.reload(ledger)   # re-run ensure_schema() against the tmp DB
     importlib.reload(ra)
+    # Route Tier2Store's HTTP calls into the in-process ledger ASGI app (no socket).
+    from mcp_server.utils.tier2_store import Tier2Store
+    ra._store = Tier2Store(transport=httpx.ASGITransport(app=ledger.app))
     return TestClient(ra.app)
 
 

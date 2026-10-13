@@ -1,66 +1,96 @@
 """Narrow data access for the Tier 2 (human-approval) service.
 
-Tier 1 (mcp_server/server.py) is the sole read-write owner of the actions ledger.
-Tier 2 must not import the general db_utils write helpers (insert_action, reset,
-bump_agent_trust, ...) — a compromised Tier 2 process would then be able to write
-arbitrary rows. Instead Tier 2 gets exactly three operations through this store:
+Tier 2 must not touch the actions ledger directly. It talks to the internal ledger
+API (web_api/ledger_api.py) over HTTP — read-only pending/receipts plus the single
+atomic resolve. Removing the filesystem coupling means a compromised Tier 2 process
+cannot open or mutate the ledger file at all.
 
-  * pending(owner)            — read-only list of the owner's open HALTED actions
-  * receipt(action_id, owner) — read-only receipt lookup
-  * resolve(action_id, owner, approved) — the ONE allowed write (atomic, owner-scoped)
-
-Reads run over a `query_only` SQLite connection so even the read path cannot mutate
-the ledger. The single write reuses the atomic resolution logic already implemented
-in web_api/apply_resolution.py rather than reimplementing it.
-
-Remaining production step (see README "What is still NOT solved"): move Tier 2 into
-its own process with a write-only HTTP API so it no longer shares the SQLite file
-with Tier 1 at all.
+Resilience: every call is retried with exponential backoff on transport errors and 5xx
+(the atomic resolve makes retries idempotent). An optional shared secret
+(ALGUARD_LEDGER_API_TOKEN) authenticates Tier 2 to the ledger API so a third party on
+the loopback interface cannot call the ledger directly.
 """
-import sqlite3
-from pathlib import Path
+import asyncio
+import os
 from typing import Any, Dict, List, Optional
 
-from mcp_server.utils import db_utils
-from mcp_server.utils.receipts import get_receipt
+import httpx
 
-
-def _readonly_connection(path: Path) -> sqlite3.Connection:
-    conn = sqlite3.connect(path, timeout=10)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA query_only=ON;")  # any write on this connection raises
-    return conn
+DEFAULT_LEDGER_API_URL = "http://127.0.0.1:8015"
+_MAX_ATTEMPTS = 3
+_BASE_BACKOFF = 0.25
 
 
 class Tier2Store:
-    """The only data access Tier 2 is allowed to perform."""
+    """HTTP client for the internal ledger API (pending / receipt / resolve)."""
 
-    @staticmethod
-    def _db_path() -> Path:
-        # Resolve at call time so a test monkeypatch of db_utils.DB_PATH applies,
-        # and a runtime ALGUARD_DB_PATH override is picked up without a restart.
-        return db_utils.DB_PATH
+    def __init__(self, base_url: Optional[str] = None, transport: Optional[Any] = None):
+        self.base_url = (base_url or os.environ.get("ALGUARD_LEDGER_API_URL") or DEFAULT_LEDGER_API_URL).rstrip("/")
+        self._transport = transport
+        self._token = os.environ.get("ALGUARD_LEDGER_API_TOKEN")
 
-    def pending(self, owner: str) -> List[Dict[str, Any]]:
-        path = self._db_path()
-        if not path.exists():
-            return []
-        conn = _readonly_connection(path)
-        try:
-            rows = conn.execute(
-                "SELECT * FROM actions WHERE agent_id = ? AND status = 'HALTED' "
-                "AND resolution IS NULL AND (expires_at IS NULL OR expires_at > ?) "
-                "ORDER BY created_at ASC;",
-                (owner, db_utils.now_iso()),
-            ).fetchall()
-            return [dict(r) for r in rows]
-        finally:
-            conn.close()
+    def _headers(self) -> Dict[str, str]:
+        return {"X-Ledger-Token": self._token} if self._token else {}
 
-    def receipt(self, action_id: str, owner: str) -> Optional[Dict[str, Any]]:
-        return get_receipt(action_id, owner)
+    async def _request(self, method: str, path: str, **kwargs) -> httpx.Response:
+        last_exc: Optional[Exception] = None
+        for attempt in range(_MAX_ATTEMPTS):
+            try:
+                async with httpx.AsyncClient(base_url=self.base_url, transport=self._transport, timeout=10.0) as client:
+                    r = await client.request(method, path, headers=self._headers(), **kwargs)
+                if r.status_code < 500 or attempt == _MAX_ATTEMPTS - 1:
+                    return r
+                last_exc = httpx.HTTPStatusError(f"{r.status_code}", request=r.request, response=r)
+            except httpx.TransportError as e:
+                last_exc = e
+            await asyncio.sleep(_BASE_BACKOFF * (2 ** attempt))
+        raise last_exc  # type: ignore[misc]
 
-    def resolve(self, action_id: str, approved: bool, owner: str) -> Dict[str, Any]:
-        # The one and only write Tier 2 can make (atomic, owner-scoped).
-        from web_api.apply_resolution import resolve_pending_action
-        return resolve_pending_action(action_id, approved, owner)
+    async def pending(self, owner: str) -> List[Dict[str, Any]]:
+        r = await self._request("GET", "/pending", params={"owner": owner})
+        r.raise_for_status()
+        return r.json()["items"]
+
+    async def receipt(self, action_id: str, owner: str) -> Optional[Dict[str, Any]]:
+        r = await self._request("GET", f"/receipts/{action_id}", params={"owner": owner})
+        if r.status_code == 404:
+            return None
+        r.raise_for_status()
+        return r.json()
+
+    async def resolve(self, action_id: str, approved: bool, owner: str) -> Dict[str, Any]:
+        r = await self._request("POST", f"/resolve/{action_id}", params={"approved": approved, "owner": owner})
+        r.raise_for_status()
+        return r.json()
+
+    async def list_trusted(self, owner: str) -> List[str]:
+        r = await self._request("GET", "/trusted-merchants", params={"owner": owner})
+        r.raise_for_status()
+        return r.json()["merchants"]
+
+    async def add_trusted(self, owner: str, merchant: str) -> Dict[str, Any]:
+        r = await self._request("POST", "/trusted-merchants", params={"owner": owner}, json={"merchant": merchant})
+        r.raise_for_status()
+        return r.json()
+
+    async def remove_trusted(self, owner: str, merchant: str) -> Dict[str, Any]:
+        r = await self._request("DELETE", f"/trusted-merchants/{merchant}", params={"owner": owner})
+        r.raise_for_status()
+        return r.json()
+
+    async def list_banned(self, owner: str) -> List[str]:
+        r = await self._request("GET", "/banned-merchants", params={"owner": owner})
+        r.raise_for_status()
+        return r.json()["merchants"]
+
+    async def add_banned(self, owner: str, merchant: str) -> Dict[str, Any]:
+        r = await self._request("POST", "/banned-merchants", params={"owner": owner}, json={"merchant": merchant})
+        r.raise_for_status()
+        return r.json()
+
+    async def remove_banned(self, owner: str, merchant: str) -> Dict[str, Any]:
+        r = await self._request("DELETE", f"/banned-merchants/{merchant}", params={"owner": owner})
+        r.raise_for_status()
+        return r.json()
+
+

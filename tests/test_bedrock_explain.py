@@ -23,7 +23,7 @@ def test_bedrock_halt_message_is_never_empty(monkeypatch):
     }
     text, source = generate_customer_explanation(decision)
     assert text and "Alexa app" in text
-    assert source == "bedrock-converse"
+    assert source == "local-fallback"  # FORCE_SIM forces the deterministic path, labeled honestly
     msg = customer_message(decision)
     assert "act_test" in msg
     assert "Gift card" in msg or "500" in msg

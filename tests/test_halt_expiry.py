@@ -62,3 +62,25 @@ def test_human_approve_closes_circuit_immediately():
     st, d2, _ = buy("Coffee", "subscription", "evil.com", 5, sess="s2")
     # 'evil.com' is now human-approved → trusted. Low-value → OK, no circuit.
     assert st == "OK"
+
+
+def test_expire_stale_halts_marks_terminal_expired():
+    # A fresh HALT is still open (resolution NULL), then its window is backdated.
+    _, d, _ = buy("Gift card", "gift_card", "evil.com", 500)
+    _expire(d["action_id"])
+
+    assert db_utils.expire_stale_halts() == 1
+
+    conn = db_utils.get_connection()
+    try:
+        row = conn.execute(
+            "SELECT resolution, resolved_by FROM actions WHERE action_id = ?",
+            (d["action_id"],),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    assert row["resolution"] == "EXPIRED"
+    assert row["resolved_by"] == "system"
+    # A terminal EXPIRED halt can no longer be approved.
+    assert resolve_pending_action(d["action_id"], True, "u1") == {"error": "already resolved or expired"}

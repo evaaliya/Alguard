@@ -12,16 +12,14 @@ import os
 from typing import Dict, List, Optional
 
 from fastapi import FastAPI, Header, HTTPException
-
+from pydantic import BaseModel
 from mcp_server.utils.auth_context import build_tier2_verifier_from_env
-from mcp_server.utils.db_utils import ensure_schema
 from mcp_server.utils.explain import internal_explanation
 from mcp_server.utils.tier2_store import Tier2Store
 from dotenv import load_dotenv
 load_dotenv()
 
 logger = logging.getLogger("Alguard.tier2")
-ensure_schema()
 app = FastAPI(title="Alguard Tier 2 Resolution Service")
 
 _verifier = build_tier2_verifier_from_env()
@@ -54,7 +52,7 @@ from fastapi import Depends  # noqa: E402
 async def pending(user: str = Depends(current_user)) -> Dict:
     """The user's own open approvals -- this is how the app learns action_ids."""
     items: List[Dict] = []
-    for a in _store.pending(user):
+    for a in await _store.pending(user):
         items.append({
             "action_id": a["action_id"],
             "expires_at": a["expires_at"],
@@ -68,7 +66,7 @@ async def pending(user: str = Depends(current_user)) -> Dict:
 
 @app.post("/resolve/{action_id}")
 async def resolve(action_id: str, approved: bool, user: str = Depends(current_user)) -> Dict:
-    result = _store.resolve(action_id, approved, user)
+    result = await _store.resolve(action_id, approved, user)
     if "error" in result:
         code = 404 if result["error"] == "action not found" else 409
         raise HTTPException(code, result["error"])
@@ -77,12 +75,52 @@ async def resolve(action_id: str, approved: bool, user: str = Depends(current_us
 
 @app.get("/receipts/{action_id}")
 async def receipt(action_id: str, user: str = Depends(current_user)) -> Dict:
-    entry = _store.receipt(action_id, user)
+    entry = await _store.receipt(action_id, user)
     if not entry:
         raise HTTPException(404, "receipt not found")
     return entry
 
 
+class TrustedMerchantIn(BaseModel):
+    merchant: str
+
+
+@app.get("/trusted-merchants")
+async def trusted_list(user: str = Depends(current_user)) -> Dict:
+    return {"merchants": await _store.list_trusted(user)}
+
+
+@app.post("/trusted-merchants")
+async def trusted_add(body: TrustedMerchantIn, user: str = Depends(current_user)) -> Dict:
+    m = body.merchant.strip().lower()
+    if not m:
+        raise HTTPException(400, "merchant must not be empty")
+    return await _store.add_trusted(user, m)
+
+
+@app.delete("/trusted-merchants/{merchant}")
+async def trusted_remove(merchant: str, user: str = Depends(current_user)) -> Dict:
+    return await _store.remove_trusted(user, merchant)
+
+
+@app.get("/banned-merchants")
+async def banned_list(user: str = Depends(current_user)) -> Dict:
+    return {"merchants": await _store.list_banned(user)}
+
+
+@app.post("/banned-merchants")
+async def banned_add(body: TrustedMerchantIn, user: str = Depends(current_user)) -> Dict:
+    m = body.merchant.strip().lower()
+    if not m:
+        raise HTTPException(400, "merchant must not be empty")
+    return await _store.add_banned(user, m)
+
+
+@app.delete("/banned-merchants/{merchant}")
+async def banned_remove(merchant: str, user: str = Depends(current_user)) -> Dict:
+    return await _store.remove_banned(user, merchant)
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="127.0.0.1", port=8010)
+

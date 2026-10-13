@@ -17,7 +17,7 @@ from mcp_server.utils.category_risk import infer_category_from_text
 # --- positives: must be classified as gift_card ---
 
 @pytest.mark.parametrize("text", [
-    "Steam wallet code",
+    "Game-store wallet code",
     "Google Play card",
     "iTunes card",
     "App Store code",

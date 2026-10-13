@@ -51,6 +51,7 @@ from mcp_server.utils.explain import customer_message
 from mcp_server.utils.auth_context import build_token_verifier_from_env, resolve_agent_identity
 from mcp_server.utils.purchase_flow import process_attempt
 from mcp_server.utils.category_risk import CATEGORY_VALUES
+from mcp_server.utils.rate_limit import RateLimiter
 from dotenv import load_dotenv
 load_dotenv()   # loads alguard/.env if present; harmless if missing
 
@@ -59,9 +60,19 @@ logger = logging.getLogger("Alguard-MCP")
 
 ensure_schema()
 
+# Per-owner throttle on attempt_purchase: bounds how fast a hostile / prompt-injected
+# agent can flood the risk engine. ALGUARD_RATE_LIMIT_PER_MIN=0 disables. The default
+# (120/min) is generous for a human but blocks runaway agent loops.
+_rate_limit_per_min = int(os.environ.get("ALGUARD_RATE_LIMIT_PER_MIN", "120") or 0)
+_limiter = (
+    RateLimiter(capacity=float(_rate_limit_per_min), refill_per_sec=float(_rate_limit_per_min) / 60.0)
+    if _rate_limit_per_min > 0
+    else None
+)
+
 # OAuth 2.1 resource-server auth (see auth_context.py) turns on ONLY when OAUTH_*
 # env vars are set. Without them this runs with no auth at all -- fine for local
-# dev against demo/simulate_session.py, not acceptable for certification.
+# dev against demo/golden_path.py, not acceptable for certification.
 _token_verifier = build_token_verifier_from_env()
 _DEV_MODE = os.environ.get("ALGUARD_DEV_MODE", "").strip().lower() in ("1", "true", "yes")
 
@@ -126,6 +137,8 @@ def attempt_purchase(
     in later ones. Start a new value for a new, unrelated shopping request.
     """
     owner = resolve_agent_identity()          # verified end-user `sub`, never a tool argument
+    if _limiter is not None and not _limiter.allow(owner):
+        raise ValueError("Too many purchase attempts in a short time — please wait a moment and try again.")
     decision, duplicate = process_attempt(owner, session_id, item, category, merchant, amount)
 
     logger.info("action=%s status=%s owner=%s dup=%s amount=%s",

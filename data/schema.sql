@@ -33,6 +33,22 @@ CREATE TABLE IF NOT EXISTS actions (
     resolved_by     TEXT
 );
 
+CREATE TABLE IF NOT EXISTS user_trusted_merchants (
+    owner       TEXT NOT NULL,
+    merchant    TEXT NOT NULL,
+    added_at    TEXT NOT NULL,
+    PRIMARY KEY (owner, merchant)
+);
+
+CREATE TABLE IF NOT EXISTS user_banned_merchants (
+    owner       TEXT NOT NULL,
+    merchant    TEXT NOT NULL,
+    added_at    TEXT NOT NULL,
+    PRIMARY KEY (owner, merchant)
+);
+
+
 CREATE INDEX IF NOT EXISTS idx_actions_owner   ON actions(agent_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_actions_session ON actions(session_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_actions_merch   ON actions(agent_id, merchant);
+
